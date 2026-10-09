@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cine & Series - Sergio y Alaia</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { background-color: #0f172a; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; }
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="pb-24">
+
+  <!-- Header -->
+  <header class="sticky top-0 z-50 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 p-4 flex justify-between items-center">
+    <h1 class="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
+      🎬 Sergio & Alaia
+    </h1>
+    <div class="flex gap-2">
+      <button onclick="openModal('sync-modal')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 p-2 rounded-full text-xs" title="Sincronizar Nube">
+        <i class="fa-solid fa-cloud"></i>
+      </button>
+      <button onclick="openModal('add-modal')" class="bg-pink-600 hover:bg-pink-500 text-white px-3 py-1.5 rounded-full text-sm font-semibold flex items-center gap-1 shadow-lg shadow-pink-600/30">
+        <i class="fa-solid fa-plus"></i> Añadir
+      </button>
+    </div>
+  </header>
+
+  <!-- Filtros de Sección -->
+  <nav class="flex gap-2 p-4 overflow-x-auto hide-scrollbar border-b border-slate-800 bg-slate-950/50">
+    <button onclick="setFilter('TODOS')" id="btn-TODOS" class="filter-btn bg-pink-600 text-white px-4 py-1.5 rounded-full text-sm whitespace-nowrap font-medium">Todos</button>
+    <button onclick="setFilter('SERGIO')" id="btn-SERGIO" class="filter-btn bg-slate-800 text-slate-300 px-4 py-1.5 rounded-full text-sm whitespace-nowrap font-medium">👦 Sergio</button>
+    <button onclick="setFilter('ALAIA')" id="btn-ALAIA" class="filter-btn bg-slate-800 text-slate-300 px-4 py-1.5 rounded-full text-sm whitespace-nowrap font-medium">👩 Alaia</button>
+    <button onclick="setFilter('JUNTOS')" id="btn-JUNTOS" class="filter-btn bg-slate-800 text-slate-300 px-4 py-1.5 rounded-full text-sm whitespace-nowrap font-medium">👩‍❤️‍👨 Juntos</button>
+    <button onclick="setFilter('NIÑA')" id="btn-NIÑA" class="filter-btn bg-slate-800 text-slate-300 px-4 py-1.5 rounded-full text-sm whitespace-nowrap font-medium">👧 Con la Niña</button>
+  </nav>
+
+  <!-- Catálogo -->
+  <main id="content-grid" class="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+  </main>
+
+  <!-- Modal Añadir / Buscar -->
+  <div id="add-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-slate-900 border border-slate-800 w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl p-5 max-h-[90vh] flex flex-col">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-lg font-bold">Añadir Película o Serie</h2>
+        <button onclick="closeModal('add-modal')" class="text-slate-400 text-xl">&times;</button>
+      </div>
+
+      <!-- Buscador -->
+      <form onsubmit="event.preventDefault(); executeSearch();" class="relative mb-2 flex gap-2">
+        <input type="text" id="tmdb-search" placeholder="Escribe el nombre (ej: Dexter)..." class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-pink-500 text-white">
+        <button type="submit" id="search-btn" class="bg-pink-600 text-white px-4 py-2.5 rounded-xl text-xs font-semibold hover:bg-pink-500 flex-shrink-0">Buscar</button>
+      </form>
+
+      <div class="flex justify-between items-center mb-3">
+        <span id="status-msg" class="text-xs text-slate-400 hidden">Buscando...</span>
+        <button onclick="addManualItem()" class="text-xs text-pink-400 hover:underline ml-auto">+ Añadir rápido de forma manual</button>
+      </div>
+
+      <!-- Resultados -->
+      <div id="search-results" class="flex-1 overflow-y-auto space-y-2 pr-1 hide-scrollbar max-h-60 mb-4"></div>
+
+      <!-- Configuración del ítem seleccionado -->
+      <div id="selected-item-form" class="hidden border-t border-slate-800 pt-4 space-y-3">
+        <div class="flex items-center gap-3 bg-slate-950 p-2 rounded-xl border border-slate-800">
+          <img id="preview-img" src="" class="w-10 h-14 object-cover rounded-md">
+          <div>
+            <h4 id="preview-title" class="text-xs font-bold text-white"></h4>
+            <p id="preview-type" class="text-[10px] text-slate-400 uppercase"></p>
+          </div>
+        </div>
+
+        <p class="text-xs text-slate-400 font-semibold uppercase">¿Para quién es?</p>
+        <div class="grid grid-cols-2 gap-2">
+          <label class="flex items-center gap-2 bg-slate-800 p-2 rounded-lg text-xs cursor-pointer">
+            <input type="radio" name="category" value="SERGIO" class="accent-pink-500"> 👦 Solo Sergio
+          </label>
+          <label class="flex items-center gap-2 bg-slate-800 p-2 rounded-lg text-xs cursor-pointer">
+            <input type="radio" name="category" value="ALAIA" class="accent-pink-500"> 👩 Solo Alaia
+          </label>
+          <label class="flex items-center gap-2 bg-slate-800 p-2 rounded-lg text-xs cursor-pointer">
+            <input type="radio" name="category" value="JUNTOS" checked class="accent-pink-500"> 👩‍❤️‍👨 Para los Dos
+          </label>
+          <label class="flex items-center gap-2 bg-slate-800 p-2 rounded-lg text-xs cursor-pointer">
+            <input type="radio" name="category" value="NIÑA" class="accent-pink-500"> 👧 Con la Niña
+          </label>
+        </div>
+
+        <button onclick="saveSelectedItem()" class="w-full bg-pink-600 hover:bg-pink-500 text-white py-2.5 rounded-xl text-sm font-semibold mt-2">
+          Guardar en la Lista
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Sincronización -->
+  <div id="sync-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-2xl p-5 space-y-4">
+      <div class="flex justify-between items-center">
+        <h3 class="font-bold text-sm text-white">Sincronizar Móviles (Opcional)</h3>
+        <button onclick="closeModal('sync-modal')" class="text-slate-400 text-lg">&times;</button>
+      </div>
+      <p class="text-xs text-slate-400">Puedes exportar e importar tu lista mediante un código o conectar una base de datos en tiempo real.</p>
+      
+      <button onclick="exportData()" class="w-full bg-slate-800 border border-slate-700 text-slate-200 py-2 rounded-xl text-xs font-semibold">
+        📥 Copiar Copia de Seguridad
+      </button>
+      <button onclick="importData()" class="w-full bg-slate-800 border border-slate-700 text-slate-200 py-2 rounded-xl text-xs font-semibold">
+        📤 Pegar / Cargar Copia de Seguridad
+      </button>
+    </div>
+  </div>
+
+  <script>
+    let currentFilter = 'TODOS';
+    let mediaList = JSON.parse(localStorage.getItem('mediaList')) || [];
+    let tempSelectedItem = null;
+
+    function renderList() {
+      const grid = document.getElementById('content-grid');
+      grid.innerHTML = '';
+
+      const filtered = mediaList.filter(item => currentFilter === 'TODOS' || item.category === currentFilter);
+
+      if (filtered.length === 0) {
+        grid.innerHTML = `<div class="col-span-full text-center py-12 text-slate-500 text-sm">No hay series ni películas en esta sección. Toca "Añadir" para empezar.</div>`;
+        return;
+      }
+
+      filtered.forEach((item, index) => {
+        const isTV = item.type === 'tv';
+        const faSearchUrl = `https://www.filmaffinity.com/es/search.php?stext=${encodeURIComponent(item.title)}`;
+        
+        const card = document.createElement('div');
+        card.className = "bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden flex gap-4 p-3 relative shadow-md";
+        card.innerHTML = `
+          <img src="${item.poster}" class="w-24 h-36 object-cover rounded-xl flex-shrink-0" alt="Poster" onerror="this.src='https://via.placeholder.com/200x300?text=Sin+Imagen'">
+          <div class="flex-1 flex flex-col justify-between py-1">
+            <div>
+              <div class="flex justify-between items-start">
+                <h3 class="font-bold text-sm text-white line-clamp-1">${item.title}</h3>
+                <button onclick="deleteItem(${index})" class="text-slate-600 hover:text-red-400 text-xs px-1">&times;</button>
+              </div>
+              <span class="inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-800 text-pink-400 border border-slate-700">
+                ${getCategoryLabel(item.category)}
+              </span>
+              <p class="text-xs text-slate-400 mt-2 line-clamp-2">${item.overview || 'Sin descripción disponible.'}</p>
+            </div>
+
+            ${isTV ? `
+              <div class="mt-2 bg-slate-950 p-2 rounded-xl flex items-center justify-between border border-slate-800">
+                <span class="text-xs text-slate-300 font-semibold">Capítulo: ${item.episode}</span>
+                <div class="flex gap-1">
+                  <button onclick="changeEpisode(${index}, -1)" class="w-6 h-6 bg-slate-800 text-xs rounded-lg flex items-center justify-center text-slate-300">-</button>
+                  <button onclick="changeEpisode(${index}, 1)" class="w-6 h-6 bg-pink-600 text-xs rounded-lg flex items-center justify-center text-white font-bold">+1</button>
+                </div>
+              </div>
+            ` : ''}
+
+            <a href="${faSearchUrl}" target="_blank" class="mt-2 text-[11px] text-amber-400 hover:underline flex items-center gap-1 font-medium">
+              <i class="fa-solid fa-star text-[10px]"></i> Ver en FilmAffinity
+            </a>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function getCategoryLabel(cat) {
+      switch(cat) {
+        case 'SERGIO': return '👦 Sergio';
+        case 'ALAIA': return '👩 Alaia';
+        case 'JUNTOS': return '👩‍❤️‍👨 Juntos';
+        case 'NIÑA': return '👧 Con la Niña';
+        default: return cat;
+      }
+    }
+
+    function setFilter(filter) {
+      currentFilter = filter;
+      document.querySelectorAll('.filter-btn').forEach(b => {
+        b.className = "filter-btn bg-slate-800 text-slate-300 px-4 py-1.5 rounded-full text-sm whitespace-nowrap font-medium";
+      });
+      document.getElementById(`btn-${filter}`).className = "filter-btn bg-pink-600 text-white px-4 py-1.5 rounded-full text-sm whitespace-nowrap font-medium";
+      renderList();
+    }
+
+    async function executeSearch() {
+      const input = document.getElementById('tmdb-search');
+      const query = input.value.trim();
+      const status = document.getElementById('status-msg');
+      const resultsDiv = document.getElementById('search-results');
+
+      if (!query) return;
+
+      status.innerText = "Buscando...";
+      status.classList.remove('hidden');
+      resultsDiv.innerHTML = '';
+      document.getElementById('selected-item-form').classList.add('hidden');
+
+      let results = [];
+
+      try {
+        const res = await fetch(`https://api.tvmaze.com/search/shows?q=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        if (data && data.length > 0) {
+          results = data.map(entry => ({
+            id: entry.show.id,
+            title: entry.show.name,
+            type: 'tv',
+            poster: entry.show.image ? entry.show.image.medium : 'https://via.placeholder.com/200x300?text=Sin+Imagen',
+            overview: entry.show.summary ? entry.show.summary.replace(/<[^>]*>?/gm, '') : ''
+          }));
+        }
+      } catch (e) {}
+
+      if (results.length === 0) {
+        try {
+          const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=movie&limit=5`);
+          const data = await res.json();
+          if (data && data.results && data.results.length > 0) {
+            results = data.results.map(item => ({
+              id: item.trackId,
+              title: item.trackName,
+              type: 'movie',
+              poster: item.artworkUrl100 ? item.artworkUrl100.replace('100x100bb', '300x300bb') : 'https://via.placeholder.com/200x300?text=Sin+Imagen',
+              overview: item.longDescription || item.shortDescription || ''
+            }));
+          }
+        } catch (e) {}
+      }
+
+      status.classList.add('hidden');
+
+      if (results.length === 0) {
+        resultsDiv.innerHTML = `
+          <div class="text-center py-4">
+            <p class="text-xs text-slate-400 mb-2">No se encontraron resultados automáticos.</p>
+            <button onclick="addManualItem()" class="bg-slate-800 text-pink-400 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-semibold">
+              + Añadir "${query}" manualmente
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      results.forEach(item => {
+        const row = document.createElement('div');
+        row.className = "flex items-center gap-3 p-2 bg-slate-800/60 rounded-xl cursor-pointer hover:bg-slate-800 transition border border-slate-700/50";
+        row.onclick = () => selectItem(item);
+
+        row.innerHTML = `
+          <img src="${item.poster}" class="w-10 h-14 object-cover rounded-md flex-shrink-0" onerror="this.src='https://via.placeholder.com/200x300?text=Sin+Imagen'">
+          <div class="overflow-hidden">
+            <h4 class="text-xs font-bold text-white truncate">${item.title}</h4>
+            <p class="text-[10px] text-slate-400 line-clamp-1">${item.overview || 'Toca para seleccionar'}</p>
+          </div>
+        `;
+        resultsDiv.appendChild(row);
+      });
+    }
+
+    function addManualItem() {
+      const query = document.getElementById('tmdb-search').value.trim() || 'Nueva Entrada';
+      selectItem({
+        id: Date.now(),
+        title: query,
+        type: 'tv',
+        poster: 'https://via.placeholder.com/200x300?text=' + encodeURIComponent(query),
+        overview: 'Añadido manualmente.',
+        episode: 1
+      });
+    }
+
+    function selectItem(item) {
+      tempSelectedItem = item;
+      document.getElementById('preview-img').src = item.poster;
+      document.getElementById('preview-title').innerText = item.title;
+      document.getElementById('preview-type').innerText = item.type === 'tv' ? '📺 Serie' : '🎬 Película';
+      document.getElementById('selected-item-form').classList.remove('hidden');
+    }
+
+    function saveSelectedItem() {
+      if (!tempSelectedItem) return;
+      const category = document.querySelector('input[name="category"]:checked').value;
+      tempSelectedItem.category = category;
+      if (!tempSelectedItem.episode) tempSelectedItem.episode = 1;
+
+      mediaList.unshift(tempSelectedItem);
+      localStorage.setItem('mediaList', JSON.stringify(mediaList));
+
+      tempSelectedItem = null;
+      document.getElementById('selected-item-form').classList.add('hidden');
+      document.getElementById('search-results').innerHTML = '';
+      document.getElementById('tmdb-search').value = '';
+      closeModal('add-modal');
+      renderList();
+    }
+
+    function changeEpisode(index, delta) {
+      mediaList[index].episode = Math.max(1, mediaList[index].episode + delta);
+      localStorage.setItem('mediaList', JSON.stringify(mediaList));
+      renderList();
+    }
+
+    function deleteItem(index) {
+      mediaList.splice(index, 1);
+      localStorage.setItem('mediaList', JSON.stringify(mediaList));
+      renderList();
+    }
+
+    function exportData() {
+      navigator.clipboard.writeText(JSON.stringify(mediaList));
+      alert("Copia guardada en el portapapeles. ¡Mándasela a Alaia por WhatsApp!");
+    }
+
+    function importData() {
+      const code = prompt("Pega aquí el código que te han enviado:");
+      if (code) {
+        try {
+          mediaList = JSON.parse(code);
+          localStorage.setItem('mediaList', JSON.stringify(mediaList));
+          renderList();
+          alert("¡Lista actualizada correctamente!");
+        } catch(e) {
+          alert("Código no válido.");
+        }
+      }
+    }
+
+    function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+    renderList();
+  </script>
+</body>
+</html>
