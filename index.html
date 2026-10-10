@@ -215,22 +215,32 @@
       currentUser = user;
       localStorage.setItem('app_user', user);
       
+      // Ocultar pantalla de perfil de inmediato
       const screen = document.getElementById('user-select-screen');
-      if (screen) screen.classList.add('hidden');
-      
+      if (screen) {
+        screen.style.display = 'none';
+      }
+
       const nameElem = document.getElementById('active-user-name');
       const iconElem = document.getElementById('active-user-icon');
       if (nameElem) nameElem.innerText = user === 'SERGIO' ? 'Sergio' : 'Alaia';
       if (iconElem) iconElem.innerText = user === 'SERGIO' ? '👦' : '👩';
 
-      setupFilterNav();
-      fetchMedia();
-      checkNotificationPermissionState();
+      try {
+        setupFilterNav();
+        fetchMedia();
+        checkNotificationPermissionState();
+      } catch(e) {
+        console.error("Error inicializando tras elegir usuario:", e);
+      }
     }
 
     function showUserSelection() {
       const screen = document.getElementById('user-select-screen');
-      if (screen) screen.classList.remove('hidden');
+      if (screen) {
+        screen.style.display = 'flex';
+        screen.classList.remove('hidden');
+      }
     }
 
     function requestNotificationPermission() {
@@ -413,7 +423,4 @@
       renderList();
     }
 
-    function getCurrentFilteredList() {
-      return mediaList.filter(item => {
-        const matchCategory = item.category === currentFilter;
-        const matchType = currentMediaTypeFilter === 'ALL' || item.type === currentMediaTy
+ 
