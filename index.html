@@ -38,25 +38,21 @@
 </head>
 <body class="pb-24">
 
-  <!-- Pantalla de Selección de Usuario (Modal Inicial) -->
+  <!-- Pantalla de Selección de Usuario -->
   <div id="user-select-screen" class="fixed inset-0 bg-slate-950 z-50 flex flex-col items-center justify-center p-6 text-center">
     <h2 class="text-2xl font-bold text-white mb-2">¿Quién está viendo?</h2>
     <p class="text-slate-400 text-xs mb-8">Elige tu perfil para ver tus contenidos</p>
     
     <div class="flex gap-6 sm:gap-10">
-      <!-- Opción Sergio -->
       <button onclick="selectUser('SERGIO')" class="group flex flex-col items-center focus:outline-none">
         <div class="w-24 h-24 sm:w-28 sm:h-28 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-full flex items-center justify-center p-1 border-2 border-white/20 group-active:scale-95 transition shadow-lg shadow-blue-500/20">
-          <!-- Puedes cambiar src por la URL de la foto real de Sergio -->
           <img src="https://api.dicebear.com/7.x/bottts/svg?seed=Sergio" class="w-full h-full rounded-full bg-slate-900 object-cover" alt="Sergio">
         </div>
         <span class="mt-3 font-bold text-slate-200 group-hover:text-pink-400 text-sm">Sergio</span>
       </button>
 
-      <!-- Opción Alaia -->
       <button onclick="selectUser('ALAIA')" class="group flex flex-col items-center focus:outline-none">
         <div class="w-24 h-24 sm:w-28 sm:h-28 bg-gradient-to-tr from-pink-600 to-purple-500 rounded-full flex items-center justify-center p-1 border-2 border-white/20 group-active:scale-95 transition shadow-lg shadow-pink-500/20">
-          <!-- Puedes cambiar src por la URL de la foto real de Alaia -->
           <img src="https://api.dicebear.com/7.x/bottts/svg?seed=Alaia" class="w-full h-full rounded-full bg-slate-900 object-cover" alt="Alaia">
         </div>
         <span class="mt-3 font-bold text-slate-200 group-hover:text-pink-400 text-sm">Alaia</span>
@@ -78,7 +74,6 @@
 
   <!-- Filtros Dinámicos -->
   <nav id="filter-nav" class="flex gap-2 p-4 overflow-x-auto hide-scrollbar border-b border-white/10 bg-slate-950/60">
-    <!-- Se generan automáticamente según el perfil -->
   </nav>
 
   <!-- Catálogo -->
@@ -94,7 +89,6 @@
         <button onclick="closeAddModal()" type="button" class="text-slate-400 hover:text-white text-2xl px-2">&times;</button>
       </div>
 
-      <!-- Selector Tipo Búsqueda -->
       <div class="flex gap-2 mb-3 bg-slate-950 p-1 rounded-xl border border-white/10">
         <button type="button" onclick="setSearchType('movie')" id="type-movie-btn" class="flex-1 py-1.5 text-xs font-bold rounded-lg bg-pink-600 text-white">🎬 Películas</button>
         <button type="button" onclick="setSearchType('tv')" id="type-tv-btn" class="flex-1 py-1.5 text-xs font-bold rounded-lg text-slate-400">📺 Series</button>
@@ -167,7 +161,6 @@
       localStorage.setItem('app_user', user);
       document.getElementById('user-select-screen').classList.add('hidden');
       
-      // Configurar vista según usuario
       document.getElementById('active-user-name').innerText = user === 'SERGIO' ? 'Sergio' : 'Alaia';
       document.getElementById('active-user-icon').innerText = user === 'SERGIO' ? '👦' : '👩';
 
@@ -197,7 +190,7 @@
         ];
       }
 
-      currentFilter = filters[0].id; // Activa el primero por defecto
+      currentFilter = filters[0].id;
 
       filters.forEach((f, index) => {
         const btn = document.createElement('button');
@@ -262,6 +255,7 @@
 
       filtered.forEach((item) => {
         const isTV = item.type === 'tv';
+        const isCompleted = item.completed || false;
         const faSearchUrl = `https://www.filmaffinity.com/es/search.php?stext=${encodeURIComponent(item.title)}`;
         const season = item.season || 1;
         const episode = item.episode || 1;
@@ -277,9 +271,13 @@
         }
         
         const card = document.createElement('div');
-        card.className = "card-style rounded-2xl overflow-hidden flex gap-4 p-3.5 relative";
+        card.className = `card-style rounded-2xl overflow-hidden flex gap-4 p-3.5 relative ${isCompleted ? 'opacity-80 border-emerald-500/40 bg-slate-900/90' : ''}`;
         card.innerHTML = `
-          <img src="${item.poster}" class="w-24 h-36 object-cover rounded-xl flex-shrink-0 border border-white/10 shadow-sm" alt="Poster" onerror="this.src='https://via.placeholder.com/200x300?text=Sin+Imagen'">
+          <div class="relative flex-shrink-0">
+            <img src="${item.poster}" class="w-24 h-36 object-cover rounded-xl border border-white/10 shadow-sm" alt="Poster" onerror="this.src='https://via.placeholder.com/200x300?text=Sin+Imagen'">
+            ${isCompleted ? '<span class="absolute top-1 left-1 bg-emerald-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shadow">VISTA</span>' : ''}
+          </div>
+
           <div class="flex-1 flex flex-col justify-between py-0.5">
             <div>
               <div class="flex justify-between items-start gap-1">
@@ -294,17 +292,25 @@
                   ${isTV ? '📺 Serie' : '🎬 Película'}
                 </span>
               </div>
-              <p class="text-xs text-slate-300 mt-2 leading-relaxed line-clamp-4">${item.overview || 'Sin descripción disponible.'}</p>
+              <p class="text-xs text-slate-300 mt-2 leading-relaxed line-clamp-3">${item.overview || 'Sin descripción disponible.'}</p>
             </div>
 
             ${isTV ? `
               <div class="mt-2 bg-slate-950/80 p-1.5 rounded-xl flex items-center justify-between border border-white/10 gap-2">
-                <select onchange="updateSeasonDropdown(${item.id}, this.value)" class="bg-slate-800 text-white text-xs rounded-lg border border-white/10 p-1 focus:outline-none">
-                  ${seasonOptions}
-                </select>
-                <select onchange="updateEpisodeDropdown(${item.id}, this.value)" class="bg-slate-800 text-white text-xs rounded-lg border border-white/10 p-1 focus:outline-none">
-                  ${episodeOptions}
-                </select>
+                ${isCompleted ? `
+                  <span class="text-xs text-emerald-400 font-semibold px-1">Temporada finalizada</span>
+                  <button onclick="toggleCompleted(${item.id}, false)" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded-lg border border-white/10 font-medium">Reanudar</button>
+                ` : `
+                  <select onchange="updateSeasonDropdown(${item.id}, this.value)" class="bg-slate-800 text-white text-xs rounded-lg border border-white/10 p-1 focus:outline-none">
+                    ${seasonOptions}
+                  </select>
+                  <select onchange="updateEpisodeDropdown(${item.id}, this.value)" class="bg-slate-800 text-white text-xs rounded-lg border border-white/10 p-1 focus:outline-none">
+                    ${episodeOptions}
+                  </select>
+                  <button onclick="toggleCompleted(${item.id}, true)" title="Marcar temporada como vista" class="bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white text-xs px-2 py-1 rounded-lg border border-emerald-500/30 transition">
+                    ✓
+                  </button>
+                `}
               </div>
             ` : ''}
 
@@ -459,7 +465,8 @@
         poster: tempSelectedItem.poster,
         overview: tempSelectedItem.overview,
         category: category,
-        episode: 1
+        episode: 1,
+        completed: false
       };
 
       const { error } = await supabaseClient.from('media').insert([newItem]);
@@ -476,8 +483,13 @@
       }
     }
 
+    async function toggleCompleted(id, status) {
+      await supabaseClient.from('media').update({ completed: status }).eq('id', id);
+      fetchMedia();
+    }
+
     async function updateSeasonDropdown(id, newSeason) {
-      await supabaseClient.from('media').update({ season: Number(newSeason), episode: 1 }).eq('id', id);
+      await supabaseClient.from('media').update({ season: Number(newSeason), episode: 1, completed: false }).eq('id', id);
       fetchMedia();
     }
 
@@ -491,7 +503,6 @@
       fetchMedia();
     }
 
-    // Inicialización de la App
     if (currentUser) {
       selectUser(currentUser);
     } else {
