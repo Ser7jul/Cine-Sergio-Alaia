@@ -90,7 +90,7 @@
           </label>
         </div>
 
-        <button type="button" onclick="saveSelectedItem()" class="w-full bg-pink-600 hover:bg-pink-500 text-white py-2.5 rounded-xl text-sm font-semibold mt-2">
+        <button type="button" id="save-btn" onclick="saveSelectedItem()" class="w-full bg-pink-600 hover:bg-pink-500 text-white py-2.5 rounded-xl text-sm font-semibold mt-2">
           Guardar en la Lista
         </button>
       </div>
@@ -100,7 +100,7 @@
   <script>
     const SUPABASE_URL = "https://bvqzsonynnrwwiywgnox.supabase.co";
     const SUPABASE_KEY = "sb_publishable_Adn054C4cgLhzqoM7ZS7kQ_ZLNfkV0J";
-    const TMDB_KEY = "15d1607f37165a5b85e9e9cb73cd2e0a"; // Clave TMDB oficial para búsquedas de cine
+    const TMDB_KEY = "15d1607f37165a5b85e9e9cb73cd2e0a";
 
     let supabaseClient = null;
     try {
@@ -123,4 +123,75 @@
       document.getElementById('selected-item-form').classList.add('hidden');
       document.getElementById('search-results').innerHTML = '';
       document.getElementById('tmdb-search').value = '';
-    
+    }
+
+    function setSearchType(type) {
+      searchType = type;
+      const mBtn = document.getElementById('type-movie-btn');
+      const tBtn = document.getElementById('type-tv-btn');
+      if (type === 'movie') {
+        mBtn.className = "flex-1 py-1.5 text-xs font-bold rounded-lg bg-pink-600 text-white";
+        tBtn.className = "flex-1 py-1.5 text-xs font-bold rounded-lg text-slate-400";
+      } else {
+        tBtn.className = "flex-1 py-1.5 text-xs font-bold rounded-lg bg-pink-600 text-white";
+        mBtn.className = "flex-1 py-1.5 text-xs font-bold rounded-lg text-slate-400";
+      }
+    }
+
+    async function fetchMedia() {
+      if (!supabaseClient) return;
+      try {
+        const { data, error } = await supabaseClient.from('media').select('*');
+        if (!error && data) {
+          mediaList = data.sort((a, b) => (b.id || 0) - (a.id || 0));
+          renderList();
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function renderList() {
+      const grid = document.getElementById('content-grid');
+      if (!grid) return;
+      grid.innerHTML = '';
+
+      const filtered = mediaList.filter(item => currentFilter === 'TODOS' || item.category === currentFilter);
+
+      if (filtered.length === 0) {
+        grid.innerHTML = `<div class="col-span-full text-center py-12 text-slate-500 text-sm">No hay nada en esta sección. Toca "Añadir" para empezar.</div>`;
+        return;
+      }
+
+      filtered.forEach((item) => {
+        const isTV = item.type === 'tv';
+        const faSearchUrl = `https://www.filmaffinity.com/es/search.php?stext=${encodeURIComponent(item.title)}`;
+        const season = item.season || 1;
+        const episode = item.episode || 1;
+
+        let seasonOptions = '';
+        for (let s = 1; s <= 15; s++) {
+          seasonOptions += `<option value="${s}" ${s == season ? 'selected' : ''}>Temp. ${s}</option>`;
+        }
+
+        let episodeOptions = '';
+        for (let e = 1; e <= 50; e++) {
+          episodeOptions += `<option value="${e}" ${e == episode ? 'selected' : ''}>Cap. ${e}</option>`;
+        }
+        
+        const card = document.createElement('div');
+        card.className = "bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden flex gap-4 p-3 relative shadow-md";
+        card.innerHTML = `
+          <img src="${item.poster}" class="w-24 h-36 object-cover rounded-xl flex-shrink-0" alt="Poster" onerror="this.src='https://via.placeholder.com/200x300?text=Sin+Imagen'">
+          <div class="flex-1 flex flex-col justify-between py-1">
+            <div>
+              <div class="flex justify-between items-start">
+                <h3 class="font-bold text-sm text-white line-clamp-1">${item.title}</h3>
+                <button onclick="deleteItem(${item.id})" class="text-slate-600 hover:text-red-400 text-xs px-1">&times;</button>
+              </div>
+              <div class="flex gap-1 items-center mt-1">
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-800 text-pink-400 border border-slate-700">
+                  ${getCategoryLabel(item.category)}
+                </span>
+                <span class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-400 border border-slate-700/50">
+                  ${is
