@@ -36,7 +36,7 @@
 
   <!-- Catálogo -->
   <main id="content-grid" class="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-    <div class="col-span-full text-center py-12 text-slate-500 text-sm">Cargando la lista en tiempo real...</div>
+    <div class="col-span-full text-center py-12 text-slate-500 text-sm">Cargando catálogo...</div>
   </main>
 
   <!-- Modal Añadir -->
@@ -48,7 +48,7 @@
       </div>
 
       <form onsubmit="event.preventDefault(); executeSearch();" class="relative mb-2 flex gap-2">
-        <input type="text" id="tmdb-search" placeholder="Escribe el nombre (ej: Attack on Titan)..." class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-pink-500 text-white">
+        <input type="text" id="tmdb-search" placeholder="Escribe el nombre (ej: Dexter, Attack on Titan)..." class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-pink-500 text-white">
         <button type="submit" class="bg-pink-600 text-white px-4 py-2.5 rounded-xl text-xs font-semibold hover:bg-pink-500 flex-shrink-0">Buscar</button>
       </form>
 
@@ -95,22 +95,28 @@
     const SUPABASE_URL = "https://bvqzsonynnrwwiywgnox.supabase.co";
     const SUPABASE_KEY = "Sb_publishable_Adn054C4cgLhzqoM7ZS7kQ_ZLNfkV0J";
 
-    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-      auth: { persistSession: false }
-    });
+    let supabaseClient = null;
+    try {
+      supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    } catch(e) {
+      console.error(e);
+    }
 
     let currentFilter = 'TODOS';
     let mediaList = [];
     let tempSelectedItem = null;
 
     async function fetchMedia() {
+      if (!supabaseClient) return;
       try {
-        const { data, error } = await supabaseClient.from('media').select('*').order('id', { ascending: false });
+        const { data, error } = await supabaseClient.from('media').select('*');
         if (!error && data) {
-          mediaList = data;
+          mediaList = data.sort((a, b) => (b.id || 0) - (a.id || 0));
           renderList();
         }
-      } catch (e) {}
+      } catch(e) {
+        console.error(e);
+      }
     }
 
     function renderList() {
@@ -120,7 +126,7 @@
       const filtered = mediaList.filter(item => currentFilter === 'TODOS' || item.category === currentFilter);
 
       if (filtered.length === 0) {
-        grid.innerHTML = `<div class="col-span-full text-center py-12 text-slate-500 text-sm">No hay nada en esta sección. Toca "Añadir" para empezar.</div>`;
+        grid.innerHTML = `<div class="col-span-full text-center py-12 text-slate-500 text-sm">No hay series ni películas aquí. Toca "Añadir" para empezar.</div>`;
         return;
       }
 
@@ -299,33 +305,37 @@
         episode: tempSelectedItem.episode || 1
       };
 
-      const { error } = await supabaseClient.from('media').insert([newItem]);
-      if (!error) {
-        tempSelectedItem = null;
-        document.getElementById('selected-item-form').classList.add('hidden');
-        document.getElementById('search-results').innerHTML = '';
-        document.getElementById('tmdb-search').value = '';
-        closeModal('add-modal');
-        fetchMedia();
+      let { error } = await supabaseClient.from('media').insert([newItem]);
+      
+      // Si la columna season falla en Supabase, guarda sin season
+      if (error) {
+        delete newItem.season;
+        await supabaseClient.from('media').insert([newItem]);
       }
+
+      tempSelectedItem = null;
+      document.getElementById('selected-item-form').classList.add('hidden');
+      document.getElementById('search-results').innerHTML = '';
+      document.getElementById('tmdb-search').value = '';
+      closeModal('add-modal');
+      fetchMedia();
     }
 
     async function changeSeason(id, currentSeason, delta) {
       const newSeason = Math.max(1, currentSeason + delta);
-      // Al cambiar de temporada, reinicia el capítulo al 1
-      const { error } = await supabaseClient.from('media').update({ season: newSeason, episode: 1 }).eq('id', id);
-      if (!error) fetchMedia();
+      await supabaseClient.from('media').update({ season: newSeason, episode: 1 }).eq('id', id);
+      fetchMedia();
     }
 
     async function changeEpisode(id, currentEp, delta) {
       const newEp = Math.max(1, currentEp + delta);
-      const { error } = await supabaseClient.from('media').update({ episode: newEp }).eq('id', id);
-      if (!error) fetchMedia();
+      await supabaseClient.from('media').update({ episode: newEp }).eq('id', id);
+      fetchMedia();
     }
 
     async function deleteItem(id) {
-      const { error } = await supabaseClient.from('media').delete().eq('id', id);
-      if (!error) fetchMedia();
+      await supabaseClient.from('media').delete().eq('id', id);
+      fetchMedia();
     }
 
     function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
