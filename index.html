@@ -195,12 +195,6 @@
     const TMDB_KEY = "8baba8ab6b8bbe247645bcae7df63d0d";
 
     let supabaseClient = null;
-    try {
-      if (window.supabase) {
-        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-      }
-    } catch(e) {}
-
     let currentUser = localStorage.getItem('app_user') || null;
     let currentFilter = null;
     let currentMediaTypeFilter = 'ALL';
@@ -211,13 +205,23 @@
     let catalogQuery = '';
     let targetReorderId = null;
 
+    try {
+      if (window.supabase) {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      }
+    } catch(e) {}
+
     function selectUser(user) {
       currentUser = user;
       localStorage.setItem('app_user', user);
-      document.getElementById('user-select-screen').classList.add('hidden');
       
-      document.getElementById('active-user-name').innerText = user === 'SERGIO' ? 'Sergio' : 'Alaia';
-      document.getElementById('active-user-icon').innerText = user === 'SERGIO' ? '👦' : '👩';
+      const screen = document.getElementById('user-select-screen');
+      if (screen) screen.classList.add('hidden');
+      
+      const nameElem = document.getElementById('active-user-name');
+      const iconElem = document.getElementById('active-user-icon');
+      if (nameElem) nameElem.innerText = user === 'SERGIO' ? 'Sergio' : 'Alaia';
+      if (iconElem) iconElem.innerText = user === 'SERGIO' ? '👦' : '👩';
 
       setupFilterNav();
       fetchMedia();
@@ -225,7 +229,8 @@
     }
 
     function showUserSelection() {
-      document.getElementById('user-select-screen').classList.remove('hidden');
+      const screen = document.getElementById('user-select-screen');
+      if (screen) screen.classList.remove('hidden');
     }
 
     function requestNotificationPermission() {
@@ -281,6 +286,7 @@
 
     function setupFilterNav() {
       const nav = document.getElementById('filter-nav');
+      if (!nav) return;
       nav.innerHTML = '';
 
       let filters = [];
@@ -352,7 +358,6 @@
       document.getElementById('tmdb-search').value = '';
     }
 
-    // Modal de Reordenar
     function openReorderModal(id, title) {
       targetReorderId = id;
       document.getElementById('reorder-title').innerText = title;
@@ -397,11 +402,12 @@
 
       closeReorderModalDirect();
 
-      // Actualizar posiciones en memoria y Supabase
       for (let i = 0; i < currentVisibleItems.length; i++) {
         const item = currentVisibleItems[i];
         item.position = i;
-        await supabaseClient.from('media').update({ position: i }).eq('id', item.id);
+        if (supabaseClient) {
+          await supabaseClient.from('media').update({ position: i }).eq('id', item.id);
+        }
       }
 
       renderList();
@@ -410,8 +416,4 @@
     function getCurrentFilteredList() {
       return mediaList.filter(item => {
         const matchCategory = item.category === currentFilter;
-        const matchType = currentMediaTypeFilter === 'ALL' || item.type === currentMediaTypeFilter;
-        
-        let matchSearch = true;
-        if (catalogQuery.length > 0) {
-          const titleMatch = item.title && item.title.toLowerCase().includes(cat
+        const matchType = currentMediaTypeFilter === 'ALL' || item.type === currentMediaTy
