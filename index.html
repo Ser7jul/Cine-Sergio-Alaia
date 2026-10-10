@@ -36,6 +36,7 @@
 
   <!-- Catálogo -->
   <main id="content-grid" class="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div class="col-span-full text-center py-12 text-slate-400 text-sm">Cargando aplicación...</div>
   </main>
 
   <!-- Modal Añadir / Buscar -->
@@ -97,18 +98,32 @@
     const SUPABASE_URL = "https://bvqzsonynnrwwiywgnox.supabase.co";
     const SUPABASE_KEY = "Sb_publishable_Adn054C4cgLhzqoM7ZS7kQ_ZLNfkV0J";
 
-    const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+    let supabaseClient = null;
     let currentFilter = 'TODOS';
     let mediaList = [];
     let tempSelectedItem = null;
 
-    async function fetchMedia() {
-      if (!supabaseClient) return;
-      const { data, error } = await supabaseClient.from('media').select('*').order('created_at', { ascending: false });
-      if (!error && data) {
-        mediaList = data;
-        renderList();
+    try {
+      if (window.supabase && window.supabase.createClient) {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
       }
+    } catch (e) {
+      console.warn("Fallo cliente Supabase, usando almacenamiento local.");
+    }
+
+    async function fetchMedia() {
+      if (supabaseClient) {
+        try {
+          const { data, error } = await supabaseClient.from('media').select('*').order('created_at', { ascending: false });
+          if (!error && data) {
+            mediaList = data;
+            renderList();
+            return;
+          }
+        } catch(e) {}
+      }
+      mediaList = JSON.parse(localStorage.getItem('mediaList')) || [];
+      renderList();
     }
 
     function renderList() {
@@ -118,13 +133,14 @@
       const filtered = mediaList.filter(item => currentFilter === 'TODOS' || item.category === currentFilter);
 
       if (filtered.length === 0) {
-        grid.innerHTML = `<div class="col-span-full text-center py-12 text-slate-500 text-sm">No hay series ni películas en esta sección. Toca "Añadir" para empezar.</div>`;
+        grid.innerHTML = `<div class="col-span-full text-center py-12 text-slate-500 text-sm">No hay nada en esta sección. Toca "Añadir" para empezar.</div>`;
         return;
       }
 
-      filtered.forEach((item) => {
+      filtered.forEach((item, index) => {
         const isTV = item.type === 'tv';
         const faSearchUrl = `https://www.filmaffinity.com/es/search.php?stext=${encodeURIComponent(item.title)}`;
+        const itemId = item.id || index;
         
         const card = document.createElement('div');
         card.className = "bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden flex gap-4 p-3 relative shadow-md";
@@ -134,7 +150,7 @@
             <div>
               <div class="flex justify-between items-start">
                 <h3 class="font-bold text-sm text-white line-clamp-1">${item.title}</h3>
-                <button onclick="deleteItem(${item.id})" class="text-slate-600 hover:text-red-400 text-xs px-1">&times;</button>
+                <button onclick="deleteItem('${itemId}', ${index})" class="text-slate-600 hover:text-red-400 text-xs px-1">&times;</button>
               </div>
               <span class="inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-800 text-pink-400 border border-slate-700">
                 ${getCategoryLabel(item.category)}
@@ -146,8 +162,8 @@
               <div class="mt-2 bg-slate-950 p-2 rounded-xl flex items-center justify-between border border-slate-800">
                 <span class="text-xs text-slate-300 font-semibold">Capítulo: ${item.episode || 1}</span>
                 <div class="flex gap-1">
-                  <button onclick="changeEpisode(${item.id},${item.episode || 1}, -1)" class="w-6 h-6 bg-slate-800 text-xs rounded-lg flex items-center justify-center text-slate-300">-</button>
-                  <button onclick="changeEpisode(${item.id},${item.episode || 1}, 1)" class="w-6 h-6 bg-pink-600 text-xs rounded-lg flex items-center justify-center text-white font-bold">+1</button>
+                  <button onclick="changeEpisode('${itemId}', ${index},${item.episode || 1}, -1)" class="w-6 h-6 bg-slate-800 text-xs rounded-lg flex items-center justify-center text-slate-300">-</button>
+                  <button onclick="changeEpisode('${itemId}', ${index},${item.episode || 1}, 1)" class="w-6 h-6 bg-pink-600 text-xs rounded-lg flex items-center justify-center text-white font-bold">+1</button>
                 </div>
               </div>
             ` : ''}
@@ -174,90 +190,4 @@
     function setFilter(filter) {
       currentFilter = filter;
       document.querySelectorAll('.filter-btn').forEach(b => {
-        b.className = "filter-btn bg-slate-800 text-slate-300 px-4 py-1.5 rounded-full text-sm whitespace-nowrap font-medium";
-      });
-      document.getElementById(`btn-${filter}`).className = "filter-btn bg-pink-600 text-white px-4 py-1.5 rounded-full text-sm whitespace-nowrap font-medium";
-      renderList();
-    }
-
-    async function executeSearch() {
-      const input = document.getElementById('tmdb-search');
-      const query = input.value.trim();
-      const status = document.getElementById('status-msg');
-      const resultsDiv = document.getElementById('search-results');
-
-      if (!query) return;
-
-      status.innerText = "Buscando...";
-      status.classList.remove('hidden');
-      resultsDiv.innerHTML = '';
-      document.getElementById('selected-item-form').classList.add('hidden');
-
-      let results = [];
-
-      try {
-        const res = await fetch(`https://api.tvmaze.com/search/shows?q=${encodeURIComponent(query)}`);
-        const data = await res.json();
-        if (data && data.length > 0) {
-          results = data.map(entry => ({
-            id: entry.show.id,
-            title: entry.show.name,
-            type: 'tv',
-            poster: entry.show.image ? entry.show.image.medium : 'https://via.placeholder.com/200x300?text=Sin+Imagen',
-            overview: entry.show.summary ? entry.show.summary.replace(/<[^>]*>?/gm, '') : ''
-          }));
-        }
-      } catch (e) {}
-
-      if (results.length === 0) {
-        try {
-          const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=movie&limit=5`);
-          const data = await res.json();
-          if (data && data.results && data.results.length > 0) {
-            results = data.results.map(item => ({
-              id: item.trackId,
-              title: item.trackName,
-              type: 'movie',
-              poster: item.artworkUrl100 ? item.artworkUrl100.replace('100x100bb', '300x300bb') : 'https://via.placeholder.com/200x300?text=Sin+Imagen',
-              overview: item.longDescription || item.shortDescription || ''
-            }));
-          }
-        } catch (e) {}
-      }
-
-      status.classList.add('hidden');
-
-      if (results.length === 0) {
-        resultsDiv.innerHTML = `
-          <div class="text-center py-4">
-            <p class="text-xs text-slate-400 mb-2">No se encontraron resultados automáticos.</p>
-            <button onclick="addManualItem()" class="bg-slate-800 text-pink-400 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-semibold">
-              + Añadir "${query}" manualmente
-            </button>
-          </div>
-        `;
-        return;
-      }
-
-      results.forEach(item => {
-        const row = document.createElement('div');
-        row.className = "flex items-center gap-3 p-2 bg-slate-800/60 rounded-xl cursor-pointer hover:bg-slate-800 transition border border-slate-700/50";
-        row.onclick = () => selectItem(item);
-
-        row.innerHTML = `
-          <img src="${item.poster}" class="w-10 h-14 object-cover rounded-md flex-shrink-0" onerror="this.src='https://via.placeholder.com/200x300?text=Sin+Imagen'">
-          <div class="overflow-hidden">
-            <h4 class="text-xs font-bold text-white truncate">${item.title}</h4>
-            <p class="text-[10px] text-slate-400 line-clamp-1">${item.overview || 'Toca para seleccionar'}</p>
-          </div>
-        `;
-        resultsDiv.appendChild(row);
-      });
-    }
-
-    function addManualItem() {
-      const query = document.getElementById('tmdb-search').value.trim() || 'Nueva Entrada';
-      selectItem({
-        title: query,
-        type: 'tv',
-        poster: 'https://via.placeholder.com/200x300?text=' + encodeURIComponent(query
+        b.className = "filter-btn bg-slate-
