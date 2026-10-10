@@ -48,7 +48,7 @@
       </div>
 
       <form onsubmit="event.preventDefault(); executeSearch();" class="relative mb-2 flex gap-2">
-        <input type="text" id="tmdb-search" placeholder="Escribe película o serie (ej: Origen, Gladiator)..." class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-pink-500 text-white">
+        <input type="text" id="tmdb-search" placeholder="Escribe película o serie..." class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-pink-500 text-white">
         <button type="submit" class="bg-pink-600 text-white px-4 py-2.5 rounded-xl text-xs font-semibold hover:bg-pink-500 flex-shrink-0">Buscar</button>
       </form>
 
@@ -95,7 +95,12 @@
     const SUPABASE_URL = "https://bvqzsonynnrwwiywgnox.supabase.co";
     const SUPABASE_KEY = "sb_publishable_Adn054C4cgLhzqoM7ZS7kQ_ZLNfkV0J";
 
-    const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+    let supabaseClient = null;
+    try {
+      if (window.supabase) {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      }
+    } catch(e) {}
 
     let currentFilter = 'TODOS';
     let mediaList = [];
@@ -116,6 +121,7 @@
 
     function renderList() {
       const grid = document.getElementById('content-grid');
+      if (!grid) return;
       grid.innerHTML = '';
 
       const filtered = mediaList.filter(item => currentFilter === 'TODOS' || item.category === currentFilter);
@@ -197,7 +203,8 @@
       document.querySelectorAll('.filter-btn').forEach(b => {
         b.className = "filter-btn bg-slate-800 text-slate-300 px-4 py-1.5 rounded-full text-sm whitespace-nowrap font-medium";
       });
-      document.getElementById(`btn-${filter}`).className = "filter-btn bg-pink-600 text-white px-4 py-1.5 rounded-full text-sm whitespace-nowrap font-medium";
+      const activeBtn = document.getElementById(`btn-${filter}`);
+      if (activeBtn) activeBtn.className = "filter-btn bg-pink-600 text-white px-4 py-1.5 rounded-full text-sm whitespace-nowrap font-medium";
       renderList();
     }
 
@@ -209,52 +216,42 @@
 
       if (!query) return;
 
-      status.innerText = "Buscando en catálogo...";
+      status.innerText = "Buscando...";
       status.classList.remove('hidden');
       resultsDiv.innerHTML = '';
       document.getElementById('selected-item-form').classList.add('hidden');
 
       let results = [];
 
-      // Búsqueda simultánea de películas (iTunes) y series (TVMaze)
-      const [moviesRes, showsRes] = await Promise.allSettled([
-        fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=movie&limit=5`),
-        fetch(`https://api.tvmaze.com/search/shows?q=${encodeURIComponent(query)}`)
-      ]);
-
-      // Procesar Películas
-      if (moviesRes.status === 'fulfilled') {
-        try {
-          const data = await moviesRes.value.json();
-          if (data && data.results) {
-            data.results.forEach(m => {
-              results.push({
-                title: m.trackName,
-                type: 'movie',
-                poster: m.artworkUrl100 ? m.artworkUrl100.replace('100x100bb', '400x400bb') : 'https://via.placeholder.com/200x300?text=Sin+Imagen',
-                overview: m.longDescription || m.shortDescription || 'Película'
-              });
+      try {
+        const resShow = await fetch(`https://api.tvmaze.com/search/shows?q=${encodeURIComponent(query)}`);
+        const shows = await resShow.json();
+        if (shows && shows.length > 0) {
+          shows.slice(0, 4).forEach(s => {
+            results.push({
+              title: s.show.name,
+              type: 'tv',
+              poster: s.show.image ? s.show.image.medium : 'https://via.placeholder.com/200x300?text=Sin+Imagen',
+              overview: s.show.summary ? s.show.summary.replace(/<[^>]*>?/gm, '') : 'Serie'
             });
-          }
-        } catch(e) {}
-      }
+          });
+        }
+      } catch(e) {}
 
-      // Procesar Series
-      if (showsRes.status === 'fulfilled') {
-        try {
-          const data = await showsRes.value.json();
-          if (data) {
-            data.forEach(s => {
-              results.push({
-                title: s.show.name,
-                type: 'tv',
-                poster: s.show.image ? s.show.image.medium : 'https://via.placeholder.com/200x300?text=Sin+Imagen',
-                overview: s.show.summary ? s.show.summary.replace(/<[^>]*>?/gm, '') : 'Serie de TV'
-              });
+      try {
+        const resMovie = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=movie&limit=4`);
+        const movies = await resMovie.json();
+        if (movies && movies.results && movies.results.length > 0) {
+          movies.results.forEach(m => {
+            results.push({
+              title: m.trackName,
+              type: 'movie',
+              poster: m.artworkUrl100 ? m.artworkUrl100.replace('100x100bb', '300x300bb') : 'https://via.placeholder.com/200x300?text=Sin+Imagen',
+              overview: m.longDescription || m.shortDescription || 'Película'
             });
-          }
-        } catch(e) {}
-      }
+          });
+        }
+      } catch(e) {}
 
       status.classList.add('hidden');
 
