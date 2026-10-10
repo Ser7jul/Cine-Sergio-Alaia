@@ -6,6 +6,8 @@
   <title>Cine & Series - Sergio y Alaia</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Librería para Arrastrar y Soltar (Drag & Drop) -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     body { background-color: #0f172a; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; touch-action: manipulation; }
@@ -17,6 +19,16 @@
       border: 1.5px solid rgba(255, 255, 255, 0.2);
       box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
       transition: border-color 0.2s ease, transform 0.2s ease;
+      touch-action: pan-y;
+    }
+
+    /* Estilo mientras se arrastra la tarjeta */
+    .sortable-ghost {
+      opacity: 0.3;
+      transform: scale(0.98);
+    }
+    .sortable-drag {
+      cursor: grabbing;
     }
 
     .custom-modal {
@@ -83,7 +95,7 @@
     <button onclick="setMediaTypeFilter('tv')" id="media-type-tv" class="media-type-btn text-xs font-semibold px-3 py-1 rounded-lg bg-slate-800 text-slate-400 border border-white/10">📺 Series</button>
   </div>
 
-  <!-- Catálogo -->
+  <!-- Catálogo Ordenable -->
   <main id="content-grid" class="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
     <div class="col-span-full text-center py-12 text-slate-500 text-sm">Cargando catálogo...</div>
   </main>
@@ -164,6 +176,7 @@
     let mediaList = [];
     let tempSelectedItem = null;
     let tvDetailsCache = {};
+    let sortableInstance = null;
 
     function selectUser(user) {
       currentUser = user;
@@ -252,7 +265,8 @@
       try {
         const { data, error } = await supabaseClient.from('media').select('*');
         if (!error && data) {
-          mediaList = data.sort((a, b) => (b.id || 0) - (a.id || 0));
+          // Ordenar por la posición personalizada (position) o por ID descendente
+          mediaList = data.sort((a, b) => (a.position ?? 999) - (b.position ?? 999) || (b.id || 0) - (a.id || 0));
           renderList();
           loadTvRealData();
         }
@@ -341,14 +355,20 @@
         }
         
         const card = document.createElement('div');
-        card.className = `card-style rounded-2xl overflow-hidden flex gap-4 p-3.5 relative ${isCompleted ? 'opacity-80 border-emerald-500/40 bg-slate-900/90' : ''}`;
+        card.setAttribute('data-id', item.id);
+        card.className = `card-style rounded-2xl overflow-hidden flex gap-4 p-3.5 relative cursor-grab ${isCompleted ? 'opacity-80 border-emerald-500/40 bg-slate-900/90' : ''}`;
         card.innerHTML = `
+          <!-- Agarre para arrastrar -->
+          <div class="drag-handle absolute top-2 right-2 text-slate-600 hover:text-slate-400 cursor-grab p-1">
+            <i class="fa-solid fa-grip-vertical text-xs"></i>
+          </div>
+
           <div class="relative flex-shrink-0">
             <img src="${item.poster}" class="w-24 h-36 object-cover rounded-xl border border-white/10 shadow-sm" alt="Poster" onerror="this.src='https://via.placeholder.com/200x300?text=Sin+Imagen'">
             ${isCompleted ? '<span class="absolute top-1 left-1 bg-emerald-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shadow">VISTA</span>' : ''}
           </div>
 
-          <div class="flex-1 flex flex-col justify-between py-0.5">
+          <div class="flex-1 flex flex-col justify-between py-0.5 pr-4">
             <div>
               <div class="flex justify-between items-start gap-1">
                 <h3 class="font-bold text-sm text-white line-clamp-1">${item.title}</h3>
@@ -397,6 +417,43 @@
           </div>
         `;
         grid.appendChild(card);
+      });
+
+      // Inicializar el arrastrar y soltar (Drag and Drop)
+      initSortable();
+    }
+
+    function initSortable() {
+      const grid = document.getElementById('content-grid');
+      if (!grid) return;
+
+      if (sortableInstance) {
+        sortableInstance.destroy();
+      }
+
+      sortableInstance = new Sortable(grid, {
+        animation: 150,
+        handle: '.card-style', // Puedes arrastrar pulsando en cualquier parte de la tarjeta
+        ghostClass: 'sortable-ghost',
+        dragClass: 'sortable-drag',
+        onEnd: async function () {
+          const cards = grid.querySelectorAll('.card-style');
+          const updates = [];
+
+          cards.forEach((card, index) => {
+            const id = Number(card.getAttribute('data-id'));
+            if (id) {
+              updates.push({ id: id, position: index });
+              const item = mediaList.find(m => m.id === id);
+              if (item) item.position = index;
+            }
+          });
+
+          // Guardar las nuevas posiciones en Supabase
+          for (const u of updates) {
+            await supabaseClient.from('media').update({ position: u.position }).eq('id', u.id);
+          }
+        }
       });
     }
 
@@ -547,7 +604,8 @@
         category: category,
         episode: 1,
         completed: false,
-        tmdb_id: tempSelectedItem.tmdb_id || null
+        tmdb_id: tempSelectedItem.tmdb_id || null,
+        position: 0
       };
 
       const { error } = await supabaseClient.from('media').insert([newItem]);
