@@ -48,7 +48,7 @@
       </div>
 
       <form onsubmit="event.preventDefault(); executeSearch();" class="relative mb-2 flex gap-2">
-        <input type="text" id="tmdb-search" placeholder="Escribe el nombre (ej: Dexter)..." class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-pink-500 text-white">
+        <input type="text" id="tmdb-search" placeholder="Escribe el nombre (ej: Attack on Titan)..." class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-pink-500 text-white">
         <button type="submit" class="bg-pink-600 text-white px-4 py-2.5 rounded-xl text-xs font-semibold hover:bg-pink-500 flex-shrink-0">Buscar</button>
       </form>
 
@@ -95,7 +95,6 @@
     const SUPABASE_URL = "https://bvqzsonynnrwwiywgnox.supabase.co";
     const SUPABASE_KEY = "Sb_publishable_Adn054C4cgLhzqoM7ZS7kQ_ZLNfkV0J";
 
-    // Conexión Supabase optimizada
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
       auth: { persistSession: false }
     });
@@ -110,12 +109,8 @@
         if (!error && data) {
           mediaList = data;
           renderList();
-        } else if (error) {
-          console.error("Error Supabase:", error);
         }
-      } catch (e) {
-        console.error("Fallo conexión:", e);
-      }
+      } catch (e) {}
     }
 
     function renderList() {
@@ -125,13 +120,15 @@
       const filtered = mediaList.filter(item => currentFilter === 'TODOS' || item.category === currentFilter);
 
       if (filtered.length === 0) {
-        grid.innerHTML = `<div class="col-span-full text-center py-12 text-slate-500 text-sm">No hay series ni películas aquí. Toca "Añadir" para empezar.</div>`;
+        grid.innerHTML = `<div class="col-span-full text-center py-12 text-slate-500 text-sm">No hay nada en esta sección. Toca "Añadir" para empezar.</div>`;
         return;
       }
 
       filtered.forEach((item) => {
         const isTV = item.type === 'tv';
         const faSearchUrl = `https://www.filmaffinity.com/es/search.php?stext=${encodeURIComponent(item.title)}`;
+        const season = item.season || 1;
+        const episode = item.episode || 1;
         
         const card = document.createElement('div');
         card.className = "bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden flex gap-4 p-3 relative shadow-md";
@@ -150,11 +147,19 @@
             </div>
 
             ${isTV ? `
-              <div class="mt-2 bg-slate-950 p-2 rounded-xl flex items-center justify-between border border-slate-800">
-                <span class="text-xs text-slate-300 font-semibold">Capítulo: ${item.episode || 1}</span>
-                <div class="flex gap-1">
-                  <button onclick="changeEpisode(${item.id},${item.episode || 1}, -1)" class="w-6 h-6 bg-slate-800 text-xs rounded-lg flex items-center justify-center text-slate-300">-</button>
-                  <button onclick="changeEpisode(${item.id},${item.episode || 1}, 1)" class="w-6 h-6 bg-pink-600 text-xs rounded-lg flex items-center justify-center text-white font-bold">+1</button>
+              <div class="mt-2 bg-slate-950 p-2 rounded-xl flex items-center justify-between border border-slate-800 gap-1">
+                <!-- Temporada -->
+                <div class="flex items-center gap-1">
+                  <span class="text-[11px] text-slate-400 font-bold">T${season}</span>
+                  <button onclick="changeSeason(${item.id},${season}, -1)" class="w-5 h-5 bg-slate-800 text-[10px] rounded flex items-center justify-center text-slate-300">-</button>
+                  <button onclick="changeSeason(${item.id},${season}, 1)" class="w-5 h-5 bg-slate-800 text-[10px] rounded flex items-center justify-center text-slate-300">+</button>
+                </div>
+
+                <!-- Episodio -->
+                <div class="flex items-center gap-1 border-l border-slate-800 pl-2">
+                  <span class="text-[11px] text-slate-300 font-bold">E${episode}</span>
+                  <button onclick="changeEpisode(${item.id},${episode}, -1)" class="w-5 h-5 bg-slate-800 text-[10px] rounded flex items-center justify-center text-slate-300">-</button>
+                  <button onclick="changeEpisode(${item.id},${episode}, 1)" class="w-5 h-5 bg-pink-600 text-[10px] rounded flex items-center justify-center text-white font-bold">+1</button>
                 </div>
               </div>
             ` : ''}
@@ -267,6 +272,7 @@
         type: 'tv',
         poster: 'https://via.placeholder.com/200x300?text=' + encodeURIComponent(query),
         overview: 'Añadido manualmente.',
+        season: 1,
         episode: 1
       });
     }
@@ -289,6 +295,7 @@
         poster: tempSelectedItem.poster,
         overview: tempSelectedItem.overview,
         category: category,
+        season: tempSelectedItem.season || 1,
         episode: tempSelectedItem.episode || 1
       };
 
@@ -300,9 +307,14 @@
         document.getElementById('tmdb-search').value = '';
         closeModal('add-modal');
         fetchMedia();
-      } else {
-        alert("Error al guardar en Supabase. Revisa la tabla en Supabase.");
       }
+    }
+
+    async function changeSeason(id, currentSeason, delta) {
+      const newSeason = Math.max(1, currentSeason + delta);
+      // Al cambiar de temporada, reinicia el capítulo al 1
+      const { error } = await supabaseClient.from('media').update({ season: newSeason, episode: 1 }).eq('id', id);
+      if (!error) fetchMedia();
     }
 
     async function changeEpisode(id, currentEp, delta) {
@@ -319,7 +331,6 @@
     function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
     function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 
-    // Carga inicial y refresco directo en tiempo real
     fetchMedia();
     setInterval(fetchMedia, 3000);
   </script>
