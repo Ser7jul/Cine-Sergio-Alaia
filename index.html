@@ -159,10 +159,11 @@
 
     let currentUser = localStorage.getItem('app_user') || null;
     let currentFilter = null;
-    let currentMediaTypeFilter = 'ALL'; // 'ALL', 'movie', 'tv'
+    let currentMediaTypeFilter = 'ALL';
     let searchType = 'movie';
     let mediaList = [];
     let tempSelectedItem = null;
+    let tvReleaseDates = {}; // Cache de fechas próximas
 
     function selectUser(user) {
       currentUser = user;
@@ -253,9 +254,34 @@
         if (!error && data) {
           mediaList = data.sort((a, b) => (b.id || 0) - (a.id || 0));
           renderList();
+          checkUpcomingTvDates();
         }
       } catch (e) {
         console.error(e);
+      }
+    }
+
+    // Consulta la fecha del próximo estreno en TMDB
+    async function checkUpcomingTvDates() {
+      const tvItems = mediaList.filter(item => item.type === 'tv' && item.tmdb_id);
+      for (const item of tvItems) {
+        if (tvReleaseDates[item.tmdb_id]) continue;
+        try {
+          const res = await fetch(`https://api.themoviedb.org/3/tv/${item.tmdb_id}?api_key=${TMDB_KEY}&language=es-ES`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.next_episode_to_air && data.next_episode_to_air.air_date) {
+              const airDate = new Date(data.next_episode_to_air.air_date);
+              const formattedDate = airDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+              tvReleaseDates[item.tmdb_id] = `🗓️ Próx: ${formattedDate}`;
+            } else if (data.status === 'Ended' || data.status === 'Canceled') {
+              tvReleaseDates[item.tmdb_id] = `✅ Finalizada`;
+            } else {
+              tvReleaseDates[item.tmdb_id] = `🗓️ En emisión`;
+            }
+            renderList();
+          }
+        } catch(e) {}
       }
     }
 
@@ -264,7 +290,6 @@
       if (!grid) return;
       grid.innerHTML = '';
 
-      // Filtrar por categoría (Sergio, Juntos, Niña, Alaia) y por Tipo (Todo, Películas, Series)
       const filtered = mediaList.filter(item => {
         const matchCategory = item.category === currentFilter;
         const matchType = currentMediaTypeFilter === 'ALL' || item.type === currentMediaTypeFilter;
@@ -282,6 +307,7 @@
         const faSearchUrl = `https://www.filmaffinity.com/es/search.php?stext=${encodeURIComponent(item.title)}`;
         const season = item.season || 1;
         const episode = item.episode || 1;
+        const upcomingBadge = isTV && item.tmdb_id && tvReleaseDates[item.tmdb_id] ? tvReleaseDates[item.tmdb_id] : null;
 
         let seasonOptions = '';
         for (let s = 1; s <= 15; s++) {
@@ -307,14 +333,21 @@
                 <h3 class="font-bold text-sm text-white line-clamp-1">${item.title}</h3>
                 <button onclick="deleteItem(${item.id})" class="text-slate-500 hover:text-red-400 text-sm px-1 leading-none">&times;</button>
               </div>
-              <div class="flex gap-1.5 items-center mt-1">
+              
+              <div class="flex flex-wrap gap-1.5 items-center mt-1">
                 <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-pink-950/60 text-pink-300 border border-pink-500/30">
                   ${getCategoryLabel(item.category)}
                 </span>
                 <span class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-white/10">
                   ${isTV ? '📺 Serie' : '🎬 Película'}
                 </span>
+                ${upcomingBadge ? `
+                  <span class="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-amber-950/70 text-amber-300 border border-amber-500/30">
+                    ${upcomingBadge}
+                  </span>
+                ` : ''}
               </div>
+
               <p class="text-xs text-slate-300 mt-2 leading-relaxed line-clamp-3">${item.overview || 'Sin descripción disponible.'}</p>
             </div>
 
@@ -392,6 +425,7 @@
                 results.push({
                   title: m.title,
                   type: 'movie',
+                  tmdb_id: m.id,
                   poster: m.poster_path ? `https://image.tmdb.org/t/p/w300${m.poster_path}` : 'https://via.placeholder.com/200x300?text=Sin+Imagen',
                   overview: m.overview || 'Sin descripción disponible.'
                 });
@@ -407,6 +441,7 @@
                 results.push({
                   title: s.name,
                   type: 'tv',
+                  tmdb_id: s.id,
                   poster: s.poster_path ? `https://image.tmdb.org/t/p/w300${s.poster_path}` : 'https://via.placeholder.com/200x300?text=Sin+Imagen',
                   overview: s.overview || 'Sin descripción disponible.'
                 });
@@ -458,6 +493,7 @@
       selectItem({
         title: query,
         type: searchType,
+        tmdb_id: null,
         poster: 'https://via.placeholder.com/200x300?text=' + encodeURIComponent(query),
         overview: 'Añadido manualmente.',
         season: 1,
@@ -489,7 +525,8 @@
         overview: tempSelectedItem.overview,
         category: category,
         episode: 1,
-        completed: false
+        completed: false,
+        tmdb_id: tempSelectedItem.tmdb_id || null
       };
 
       const { error } = await supabaseClient.from('media').insert([newItem]);
