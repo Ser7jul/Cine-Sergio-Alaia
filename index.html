@@ -72,9 +72,16 @@
     </button>
   </header>
 
-  <!-- Filtros Dinámicos -->
-  <nav id="filter-nav" class="flex gap-2 p-4 overflow-x-auto hide-scrollbar border-b border-white/10 bg-slate-950/60">
+  <!-- Filtros Principales (Categoría) -->
+  <nav id="filter-nav" class="flex gap-2 p-3 overflow-x-auto hide-scrollbar border-b border-white/10 bg-slate-950/80">
   </nav>
+
+  <!-- Subfiltros de Tipo (Todo / Películas / Series) -->
+  <div class="flex justify-center gap-2 px-4 py-2.5 bg-slate-900/50 border-b border-white/5">
+    <button onclick="setMediaTypeFilter('ALL')" id="media-type-ALL" class="media-type-btn text-xs font-semibold px-3 py-1 rounded-lg bg-pink-600 text-white border border-white/20">🍿 Todo</button>
+    <button onclick="setMediaTypeFilter('movie')" id="media-type-movie" class="media-type-btn text-xs font-semibold px-3 py-1 rounded-lg bg-slate-800 text-slate-400 border border-white/10">🎬 Películas</button>
+    <button onclick="setMediaTypeFilter('tv')" id="media-type-tv" class="media-type-btn text-xs font-semibold px-3 py-1 rounded-lg bg-slate-800 text-slate-400 border border-white/10">📺 Series</button>
+  </div>
 
   <!-- Catálogo -->
   <main id="content-grid" class="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -152,6 +159,7 @@
 
     let currentUser = localStorage.getItem('app_user') || null;
     let currentFilter = null;
+    let currentMediaTypeFilter = 'ALL'; // 'ALL', 'movie', 'tv'
     let searchType = 'movie';
     let mediaList = [];
     let tempSelectedItem = null;
@@ -204,6 +212,16 @@
       });
     }
 
+    function setMediaTypeFilter(type) {
+      currentMediaTypeFilter = type;
+      document.querySelectorAll('.media-type-btn').forEach(b => {
+        b.className = "media-type-btn text-xs font-semibold px-3 py-1 rounded-lg bg-slate-800 text-slate-400 border border-white/10";
+      });
+      const activeBtn = document.getElementById(`media-type-${type}`);
+      if (activeBtn) activeBtn.className = "media-type-btn text-xs font-semibold px-3 py-1 rounded-lg bg-pink-600 text-white border border-white/20";
+      renderList();
+    }
+
     function openAddModal() {
       document.getElementById('add-modal').classList.add('active');
     }
@@ -246,7 +264,12 @@
       if (!grid) return;
       grid.innerHTML = '';
 
-      const filtered = mediaList.filter(item => item.category === currentFilter);
+      // Filtrar por categoría (Sergio, Juntos, Niña, Alaia) y por Tipo (Todo, Películas, Series)
+      const filtered = mediaList.filter(item => {
+        const matchCategory = item.category === currentFilter;
+        const matchType = currentMediaTypeFilter === 'ALL' || item.type === currentMediaTypeFilter;
+        return matchCategory && matchType;
+      });
 
       if (filtered.length === 0) {
         grid.innerHTML = `<div class="col-span-full text-center py-12 text-slate-500 text-sm">No hay nada guardado en esta sección. Toca "Añadir" para empezar.</div>`;
