@@ -48,7 +48,7 @@
       </div>
 
       <form onsubmit="event.preventDefault(); executeSearch();" class="relative mb-2 flex gap-2">
-        <input type="text" id="tmdb-search" placeholder="Escribe el nombre (ej: Attack on Titan)..." class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-pink-500 text-white">
+        <input type="text" id="tmdb-search" placeholder="Escribe película o serie (ej: Origen, Gladiator)..." class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-pink-500 text-white">
         <button type="submit" class="bg-pink-600 text-white px-4 py-2.5 rounded-xl text-xs font-semibold hover:bg-pink-500 flex-shrink-0">Buscar</button>
       </form>
 
@@ -64,7 +64,7 @@
           <img id="preview-img" src="" class="w-10 h-14 object-cover rounded-md">
           <div>
             <h4 id="preview-title" class="text-xs font-bold text-white"></h4>
-            <p id="preview-type" class="text-[10px] text-slate-400 uppercase"></p>
+            <p id="preview-type" class="text-[10px] text-pink-400 font-bold uppercase"></p>
           </div>
         </div>
 
@@ -121,7 +121,7 @@
       const filtered = mediaList.filter(item => currentFilter === 'TODOS' || item.category === currentFilter);
 
       if (filtered.length === 0) {
-        grid.innerHTML = `<div class="col-span-full text-center py-12 text-slate-500 text-sm">No hay series ni películas aquí. Toca "Añadir" para empezar.</div>`;
+        grid.innerHTML = `<div class="col-span-full text-center py-12 text-slate-500 text-sm">No hay nada en esta sección. Toca "Añadir" para empezar.</div>`;
         return;
       }
 
@@ -131,13 +131,11 @@
         const season = item.season || 1;
         const episode = item.episode || 1;
 
-        // Generar desplegable de temporadas (1 a 15)
         let seasonOptions = '';
         for (let s = 1; s <= 15; s++) {
           seasonOptions += `<option value="${s}" ${s == season ? 'selected' : ''}>Temp. ${s}</option>`;
         }
 
-        // Generar desplegable de capítulos (1 a 50)
         let episodeOptions = '';
         for (let e = 1; e <= 50; e++) {
           episodeOptions += `<option value="${e}" ${e == episode ? 'selected' : ''}>Cap. ${e}</option>`;
@@ -153,9 +151,14 @@
                 <h3 class="font-bold text-sm text-white line-clamp-1">${item.title}</h3>
                 <button onclick="deleteItem(${item.id})" class="text-slate-600 hover:text-red-400 text-xs px-1">&times;</button>
               </div>
-              <span class="inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-800 text-pink-400 border border-slate-700">
-                ${getCategoryLabel(item.category)}
-              </span>
+              <div class="flex gap-1 items-center mt-1">
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-800 text-pink-400 border border-slate-700">
+                  ${getCategoryLabel(item.category)}
+                </span>
+                <span class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-400 border border-slate-700/50">
+                  ${isTV ? '📺 Serie' : '🎬 Película'}
+                </span>
+              </div>
               <p class="text-xs text-slate-400 mt-2 line-clamp-2">${item.overview || 'Sin descripción disponible.'}</p>
             </div>
 
@@ -206,39 +209,51 @@
 
       if (!query) return;
 
-      status.innerText = "Buscando...";
+      status.innerText = "Buscando en catálogo...";
       status.classList.remove('hidden');
       resultsDiv.innerHTML = '';
       document.getElementById('selected-item-form').classList.add('hidden');
 
       let results = [];
 
-      try {
-        const res = await fetch(`https://api.tvmaze.com/search/shows?q=${encodeURIComponent(query)}`);
-        const data = await res.json();
-        if (data && data.length > 0) {
-          results = data.map(entry => ({
-            title: entry.show.name,
-            type: 'tv',
-            poster: entry.show.image ? entry.show.image.medium : 'https://via.placeholder.com/200x300?text=Sin+Imagen',
-            overview: entry.show.summary ? entry.show.summary.replace(/<[^>]*>?/gm, '') : ''
-          }));
-        }
-      } catch (e) {}
+      // Búsqueda simultánea de películas (iTunes) y series (TVMaze)
+      const [moviesRes, showsRes] = await Promise.allSettled([
+        fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=movie&limit=5`),
+        fetch(`https://api.tvmaze.com/search/shows?q=${encodeURIComponent(query)}`)
+      ]);
 
-      if (results.length === 0) {
+      // Procesar Películas
+      if (moviesRes.status === 'fulfilled') {
         try {
-          const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=movie&limit=5`);
-          const data = await res.json();
-          if (data && data.results && data.results.length > 0) {
-            results = data.results.map(item => ({
-              title: item.trackName,
-              type: 'movie',
-              poster: item.artworkUrl100 ? item.artworkUrl100.replace('100x100bb', '300x300bb') : 'https://via.placeholder.com/200x300?text=Sin+Imagen',
-              overview: item.longDescription || item.shortDescription || ''
-            }));
+          const data = await moviesRes.value.json();
+          if (data && data.results) {
+            data.results.forEach(m => {
+              results.push({
+                title: m.trackName,
+                type: 'movie',
+                poster: m.artworkUrl100 ? m.artworkUrl100.replace('100x100bb', '400x400bb') : 'https://via.placeholder.com/200x300?text=Sin+Imagen',
+                overview: m.longDescription || m.shortDescription || 'Película'
+              });
+            });
           }
-        } catch (e) {}
+        } catch(e) {}
+      }
+
+      // Procesar Series
+      if (showsRes.status === 'fulfilled') {
+        try {
+          const data = await showsRes.value.json();
+          if (data) {
+            data.forEach(s => {
+              results.push({
+                title: s.show.name,
+                type: 'tv',
+                poster: s.show.image ? s.show.image.medium : 'https://via.placeholder.com/200x300?text=Sin+Imagen',
+                overview: s.show.summary ? s.show.summary.replace(/<[^>]*>?/gm, '') : 'Serie de TV'
+              });
+            });
+          }
+        } catch(e) {}
       }
 
       status.classList.add('hidden');
@@ -262,9 +277,14 @@
 
         row.innerHTML = `
           <img src="${item.poster}" class="w-10 h-14 object-cover rounded-md flex-shrink-0" onerror="this.src='https://via.placeholder.com/200x300?text=Sin+Imagen'">
-          <div class="overflow-hidden">
-            <h4 class="text-xs font-bold text-white truncate">${item.title}</h4>
-            <p class="text-[10px] text-slate-400 line-clamp-1">${item.overview || 'Toca para seleccionar'}</p>
+          <div class="overflow-hidden flex-1">
+            <div class="flex items-center justify-between">
+              <h4 class="text-xs font-bold text-white truncate">${item.title}</h4>
+              <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded ${item.type === 'movie' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-purple-500/20 text-purple-300 border border-purple-500/30'}">
+                ${item.type === 'movie' ? '🎬 Película' : '📺 Serie'}
+              </span>
+            </div>
+            <p class="text-[10px] text-slate-400 line-clamp-1 mt-0.5">${item.overview}</p>
           </div>
         `;
         resultsDiv.appendChild(row);
@@ -275,7 +295,7 @@
       const query = document.getElementById('tmdb-search').value.trim() || 'Nueva Entrada';
       selectItem({
         title: query,
-        type: 'tv',
+        type: 'movie',
         poster: 'https://via.placeholder.com/200x300?text=' + encodeURIComponent(query),
         overview: 'Añadido manualmente.',
         season: 1,
@@ -289,3 +309,53 @@
       document.getElementById('preview-title').innerText = item.title;
       document.getElementById('preview-type').innerText = item.type === 'tv' ? '📺 Serie' : '🎬 Película';
       document.getElementById('selected-item-form').classList.remove('hidden');
+    }
+
+    async function saveSelectedItem() {
+      if (!tempSelectedItem || !supabaseClient) return;
+      const category = document.querySelector('input[name="category"]:checked').value;
+      
+      const newItem = {
+        title: tempSelectedItem.title,
+        type: tempSelectedItem.type,
+        poster: tempSelectedItem.poster,
+        overview: tempSelectedItem.overview,
+        category: category,
+        season: 1,
+        episode: 1
+      };
+
+      const { error } = await supabaseClient.from('media').insert([newItem]);
+      if (!error) {
+        tempSelectedItem = null;
+        document.getElementById('selected-item-form').classList.add('hidden');
+        document.getElementById('search-results').innerHTML = '';
+        document.getElementById('tmdb-search').value = '';
+        closeModal('add-modal');
+        fetchMedia();
+      }
+    }
+
+    async function updateSeasonDropdown(id, newSeason) {
+      await supabaseClient.from('media').update({ season: Number(newSeason), episode: 1 }).eq('id', id);
+      fetchMedia();
+    }
+
+    async function updateEpisodeDropdown(id, newEp) {
+      await supabaseClient.from('media').update({ episode: Number(newEp) }).eq('id', id);
+      fetchMedia();
+    }
+
+    async function deleteItem(id) {
+      await supabaseClient.from('media').delete().eq('id', id);
+      fetchMedia();
+    }
+
+    function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+    fetchMedia();
+    setInterval(fetchMedia, 5000);
+  </script>
+</body>
+</html>
