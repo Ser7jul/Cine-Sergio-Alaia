@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cine & Series - Sergio y Alaia</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     body { background-color: #0f172a; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; }
@@ -19,14 +20,9 @@
     <h1 class="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
       🎬 Sergio & Alaia
     </h1>
-    <div class="flex gap-2">
-      <button onclick="openModal('sync-modal')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1 border border-slate-700">
-        <i class="fa-solid fa-share-nodes"></i> Compartir
-      </button>
-      <button onclick="openModal('add-modal')" class="bg-pink-600 hover:bg-pink-500 text-white px-3 py-1.5 rounded-full text-sm font-semibold flex items-center gap-1 shadow-lg shadow-pink-600/30">
-        <i class="fa-solid fa-plus"></i> Añadir
-      </button>
-    </div>
+    <button onclick="openModal('add-modal')" class="bg-pink-600 hover:bg-pink-500 text-white px-3 py-1.5 rounded-full text-sm font-semibold flex items-center gap-1 shadow-lg shadow-pink-600/30">
+      <i class="fa-solid fa-plus"></i> Añadir
+    </button>
   </header>
 
   <!-- Filtros -->
@@ -38,8 +34,9 @@
     <button onclick="setFilter('NIÑA')" id="btn-NIÑA" class="filter-btn bg-slate-800 text-slate-300 px-4 py-1.5 rounded-full text-sm whitespace-nowrap font-medium">👧 Con la Niña</button>
   </nav>
 
-  <!-- Lista de contenidos -->
+  <!-- Catálogo -->
   <main id="content-grid" class="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div class="col-span-full text-center py-12 text-slate-500 text-sm">Cargando la lista en tiempo real...</div>
   </main>
 
   <!-- Modal Añadir -->
@@ -94,28 +91,32 @@
     </div>
   </div>
 
-  <!-- Modal Compartir -->
-  <div id="sync-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-2xl p-5 space-y-4">
-      <div class="flex justify-between items-center">
-        <h3 class="font-bold text-sm text-white">Compartir con Alaia</h3>
-        <button onclick="closeModal('sync-modal')" class="text-slate-400 text-lg">&times;</button>
-      </div>
-      <p class="text-xs text-slate-400">Pásale tu lista a Alaia por WhatsApp con un solo toque:</p>
-      
-      <button onclick="exportData()" class="w-full bg-pink-600 text-white py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2">
-        <i class="fa-brands fa-whatsapp text-sm"></i> Copiar Código para WhatsApp
-      </button>
-      <button onclick="importData()" class="w-full bg-slate-800 border border-slate-700 text-slate-200 py-2.5 rounded-xl text-xs font-semibold">
-        📥 Pegar Lista que me ha enviado Alaia
-      </button>
-    </div>
-  </div>
-
   <script>
+    const SUPABASE_URL = "https://bvqzsonynnrwwiywgnox.supabase.co";
+    const SUPABASE_KEY = "Sb_publishable_Adn054C4cgLhzqoM7ZS7kQ_ZLNfkV0J";
+
+    // Conexión Supabase optimizada
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: { persistSession: false }
+    });
+
     let currentFilter = 'TODOS';
-    let mediaList = JSON.parse(localStorage.getItem('mediaList')) || [];
+    let mediaList = [];
     let tempSelectedItem = null;
+
+    async function fetchMedia() {
+      try {
+        const { data, error } = await supabaseClient.from('media').select('*').order('id', { ascending: false });
+        if (!error && data) {
+          mediaList = data;
+          renderList();
+        } else if (error) {
+          console.error("Error Supabase:", error);
+        }
+      } catch (e) {
+        console.error("Fallo conexión:", e);
+      }
+    }
 
     function renderList() {
       const grid = document.getElementById('content-grid');
@@ -128,7 +129,7 @@
         return;
       }
 
-      filtered.forEach((item, index) => {
+      filtered.forEach((item) => {
         const isTV = item.type === 'tv';
         const faSearchUrl = `https://www.filmaffinity.com/es/search.php?stext=${encodeURIComponent(item.title)}`;
         
@@ -140,7 +141,7 @@
             <div>
               <div class="flex justify-between items-start">
                 <h3 class="font-bold text-sm text-white line-clamp-1">${item.title}</h3>
-                <button onclick="deleteItem(${index})" class="text-slate-600 hover:text-red-400 text-xs px-1">&times;</button>
+                <button onclick="deleteItem(${item.id})" class="text-slate-600 hover:text-red-400 text-xs px-1">&times;</button>
               </div>
               <span class="inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-800 text-pink-400 border border-slate-700">
                 ${getCategoryLabel(item.category)}
@@ -152,8 +153,8 @@
               <div class="mt-2 bg-slate-950 p-2 rounded-xl flex items-center justify-between border border-slate-800">
                 <span class="text-xs text-slate-300 font-semibold">Capítulo: ${item.episode || 1}</span>
                 <div class="flex gap-1">
-                  <button onclick="changeEpisode(${index}, -1)" class="w-6 h-6 bg-slate-800 text-xs rounded-lg flex items-center justify-center text-slate-300">-</button>
-                  <button onclick="changeEpisode(${index}, 1)" class="w-6 h-6 bg-pink-600 text-xs rounded-lg flex items-center justify-center text-white font-bold">+1</button>
+                  <button onclick="changeEpisode(${item.id},${item.episode || 1}, -1)" class="w-6 h-6 bg-slate-800 text-xs rounded-lg flex items-center justify-center text-slate-300">-</button>
+                  <button onclick="changeEpisode(${item.id},${item.episode || 1}, 1)" class="w-6 h-6 bg-pink-600 text-xs rounded-lg flex items-center justify-center text-white font-bold">+1</button>
                 </div>
               </div>
             ` : ''}
@@ -278,7 +279,7 @@
       document.getElementById('selected-item-form').classList.remove('hidden');
     }
 
-    function saveSelectedItem() {
+    async function saveSelectedItem() {
       if (!tempSelectedItem) return;
       const category = document.querySelector('input[name="category"]:checked').value;
       
@@ -291,54 +292,36 @@
         episode: tempSelectedItem.episode || 1
       };
 
-      mediaList.unshift(newItem);
-      localStorage.setItem('mediaList', JSON.stringify(mediaList));
-
-      tempSelectedItem = null;
-      document.getElementById('selected-item-form').classList.add('hidden');
-      document.getElementById('search-results').innerHTML = '';
-      document.getElementById('tmdb-search').value = '';
-      closeModal('add-modal');
-      renderList();
-    }
-
-    function changeEpisode(index, delta) {
-      if (mediaList[index]) {
-        mediaList[index].episode = Math.max(1, (mediaList[index].episode || 1) + delta);
-        localStorage.setItem('mediaList', JSON.stringify(mediaList));
-        renderList();
+      const { error } = await supabaseClient.from('media').insert([newItem]);
+      if (!error) {
+        tempSelectedItem = null;
+        document.getElementById('selected-item-form').classList.add('hidden');
+        document.getElementById('search-results').innerHTML = '';
+        document.getElementById('tmdb-search').value = '';
+        closeModal('add-modal');
+        fetchMedia();
+      } else {
+        alert("Error al guardar en Supabase. Revisa la tabla en Supabase.");
       }
     }
 
-    function deleteItem(index) {
-      mediaList.splice(index, 1);
-      localStorage.setItem('mediaList', JSON.stringify(mediaList));
-      renderList();
+    async function changeEpisode(id, currentEp, delta) {
+      const newEp = Math.max(1, currentEp + delta);
+      const { error } = await supabaseClient.from('media').update({ episode: newEp }).eq('id', id);
+      if (!error) fetchMedia();
     }
 
-    function exportData() {
-      navigator.clipboard.writeText(JSON.stringify(mediaList));
-      alert("¡Copia guardada! Pégasela a Alaia por WhatsApp.");
-    }
-
-    function importData() {
-      const code = prompt("Pega aquí el código que te ha enviado Alaia:");
-      if (code) {
-        try {
-          mediaList = JSON.parse(code);
-          localStorage.setItem('mediaList', JSON.stringify(mediaList));
-          renderList();
-          alert("¡Lista actualizada correctamente!");
-        } catch(e) {
-          alert("Código no válido.");
-        }
-      }
+    async function deleteItem(id) {
+      const { error } = await supabaseClient.from('media').delete().eq('id', id);
+      if (!error) fetchMedia();
     }
 
     function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
     function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 
-    renderList();
+    // Carga inicial y refresco directo en tiempo real
+    fetchMedia();
+    setInterval(fetchMedia, 3000);
   </script>
 </body>
 </html>
