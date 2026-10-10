@@ -511,6 +511,7 @@
 
       tvDetails.seasons.forEach(s => {
         if (s.season_number === currSeason) {
+          // Solo cuenta los capítulos POSTERIORES al que estás viendo
           totalPending += Math.max(0, (s.episode_count || 0) - currEp);
         } else if (s.season_number > currSeason) {
           totalPending += (s.episode_count || 0);
