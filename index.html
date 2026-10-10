@@ -66,7 +66,13 @@
       <button onclick="showUserSelection()" class="text-xs bg-slate-800 text-pink-400 font-bold px-2.5 py-1 rounded-full border border-pink-500/30 flex items-center gap-1.5 active:scale-95 transition">
         <span id="active-user-icon">👤</span> <span id="active-user-name">Perfil</span>
       </button>
+      
+      <!-- Botón de Activar Notificaciones -->
+      <button onclick="requestNotificationPermission()" id="notify-btn" class="text-xs bg-slate-800 text-amber-400 font-bold px-2.5 py-1 rounded-full border border-amber-500/30 flex items-center gap-1 active:scale-95 transition" title="Activar Notificaciones">
+        🔔 <span class="hidden sm:inline">Avisos</span>
+      </button>
     </div>
+
     <button onclick="openAddModal()" type="button" class="bg-pink-600 hover:bg-pink-500 text-white px-4 py-2 rounded-full text-sm font-semibold flex items-center gap-1 shadow-lg shadow-pink-600/30 border border-white/20">
       <i class="fa-solid fa-plus"></i> Añadir
     </button>
@@ -83,7 +89,7 @@
     <button onclick="setMediaTypeFilter('tv')" id="media-type-tv" class="media-type-btn text-xs font-semibold px-3 py-1 rounded-lg bg-slate-800 text-slate-400 border border-white/10">📺 Series</button>
   </div>
 
-  <!-- Barra de Búsqueda Rápida en el Catálogo -->
+  <!-- Barra de Búsqueda Rápida -->
   <div class="px-4 pt-3 pb-1">
     <div class="relative max-w-md mx-auto">
       <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
@@ -185,10 +191,64 @@
 
       setupFilterNav();
       fetchMedia();
+      checkNotificationPermissionState();
     }
 
     function showUserSelection() {
       document.getElementById('user-select-screen').classList.remove('hidden');
+    }
+
+    function requestNotificationPermission() {
+      if (!("Notification" in window)) {
+        alert("Tu navegador no soporta notificaciones.");
+        return;
+      }
+      Notification.requestPermission().then(permission => {
+        if (permission === "granted") {
+          new Notification("🍿 Notificaciones Activadas", {
+            body: `Hola ${currentUser === 'SERGIO' ? 'Sergio' : 'Alaia'}, te avisaremos solo de tus series.`,
+            icon: "https://api.dicebear.com/7.x/bottts/svg?seed=" + currentUser
+          });
+          checkNotificationPermissionState();
+        }
+      });
+    }
+
+    function checkNotificationPermissionState() {
+      const btn = document.getElementById('notify-btn');
+      if (!btn) return;
+      if ("Notification" in window && Notification.permission === "granted") {
+        btn.classList.add('opacity-50');
+        btn.title = "Notificaciones activas";
+      }
+    }
+
+    // Comprueba si la serie pertenece al perfil actual
+    function isItemForCurrentUser(itemCategory) {
+      if (!currentUser) return false;
+      if (currentUser === 'SERGIO') {
+        return itemCategory === 'SERGIO' || itemCategory === 'JUNTOS' || itemCategory === 'NIÑA';
+      } else {
+        return itemCategory === 'ALAIA' || itemCategory === 'JUNTOS';
+      }
+    }
+
+    function sendEpisodeNotification(showTitle, pendingCount, category) {
+      // Solo notifica si el item pertenece al usuario en sesión
+      if (!isItemForCurrentUser(category)) return;
+
+      if ("Notification" in window && Notification.permission === "granted") {
+        const lastNotified = localStorage.getItem(`notified_${currentUser}_${showTitle}`);
+        const now = Date.now();
+        
+        if (!lastNotified || (now - Number(lastNotified)) > 86400000) {
+          new Notification(`🍿 Capítulos nuevos en ${showTitle}`, {
+            body: `Tienes ${pendingCount} episodio(s) pendiente(s) por ver.`,
+            icon: "https://api.dicebear.com/7.x/bottts/svg?seed=" + currentUser
+          });
+          localStorage.setItem(`notified_${currentUser}_${showTitle}`, now.toString());
+        }
+      }
     }
 
     function setupFilterNav() {
@@ -315,6 +375,11 @@
               seasons: seasons,
               badge: badge
             };
+
+            const totalPending = calculateTotalPending(item, tvDetailsCache[item.tmdb_id]);
+            if (totalPending > 0 && !item.completed) {
+              sendEpisodeNotification(item.title, totalPending, item.category);
+            }
 
             renderList();
           }
