@@ -36,7 +36,7 @@
 
   <!-- Catálogo -->
   <main id="content-grid" class="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-    <div class="col-span-full text-center py-12 text-slate-500 text-sm">Cargando...</div>
+    <div class="col-span-full text-center py-12 text-slate-500 text-sm">Cargando catálogo...</div>
   </main>
 
   <!-- Modal Añadir -->
@@ -93,7 +93,6 @@
 
   <script>
     const SUPABASE_URL = "https://bvqzsonynnrwwiywgnox.supabase.co";
-    // Corregida la clave a minúscula exacta (sb_publishable_...)
     const SUPABASE_KEY = "sb_publishable_Adn054C4cgLhzqoM7ZS7kQ_ZLNfkV0J";
 
     const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
@@ -101,6 +100,7 @@
     let currentFilter = 'TODOS';
     let mediaList = [];
     let tempSelectedItem = null;
+    let episodesCache = {}; // Cache para guardar la lista de episodios de la API
 
     async function fetchMedia() {
       if (!supabaseClient) return;
@@ -115,7 +115,20 @@
       }
     }
 
-    function renderList() {
+    async function loadEpisodesForShow(showId) {
+      if (!showId) return null;
+      if (episodesCache[showId]) return episodesCache[showId];
+      try {
+        const res = await fetch(`https://api.tvmaze.com/shows/${showId}/episodes`);
+        const episodes = await res.json();
+        episodesCache[showId] = episodes;
+        return episodes;
+      } catch(e) {
+        return null;
+      }
+    }
+
+    async function renderList() {
       const grid = document.getElementById('content-grid');
       grid.innerHTML = '';
 
@@ -126,12 +139,53 @@
         return;
       }
 
-      filtered.forEach((item) => {
+      for (const item of filtered) {
         const isTV = item.type === 'tv';
         const faSearchUrl = `https://www.filmaffinity.com/es/search.php?stext=${encodeURIComponent(item.title)}`;
         const season = item.season || 1;
         const episode = item.episode || 1;
-        
+
+        let seasonSelectHTML = '';
+        let episodeSelectHTML = '';
+
+        if (isTV) {
+          const episodesData = item.show_id ? await loadEpisodesForShow(item.show_id) : null;
+
+          if (episodesData && Array.isArray(episodesData) && episodesData.length > 0) {
+            // Extraer temporadas disponibles
+            const seasonsAvailable = [...new Set(episodesData.map(e => e.season))].sort((a,b) => a - b);
+            
+            // Filtrar episodios de la temporada seleccionada
+            const currentSeasonEpisodes = episodesData.filter(e => e.season === Number(season));
+            
+            seasonSelectHTML = `<select onchange="updateSeasonDropdown(${item.id}, this.value)" class="bg-slate-800 text-white text-xs rounded border border-slate-700 p-1 focus:outline-none">`;
+            seasonsAvailable.forEach(s => {
+              seasonSelectHTML += `<option value="${s}" ${s == season ? 'selected' : ''}>Temp. ${s}</option>`;
+            });
+            seasonSelectHTML += `</select>`;
+
+            episodeSelectHTML = `<select onchange="updateEpisodeDropdown(${item.id}, this.value)" class="bg-slate-800 text-white text-xs rounded border border-slate-700 p-1 focus:outline-none">`;
+            currentSeasonEpisodes.forEach(e => {
+              episodeSelectHTML += `<option value="${e.number}" ${e.number == episode ? 'selected' : ''}>Cap. ${e.number}</option>`;
+            });
+            episodeSelectHTML += `</select>`;
+          } else {
+            // Modo alternativo simple si es añadida manualmente
+            seasonSelectHTML = `
+              <div class="flex items-center gap-1">
+                <span class="text-[11px] text-slate-400 font-bold">T${season}</span>
+                <button onclick="changeSeasonManual(${item.id}, ${season}, -1)" class="w-5 h-5 bg-slate-800 text-[10px] rounded flex items-center justify-center text-slate-300">-</button>
+                <button onclick="changeSeasonManual(${item.id}, ${season}, 1)" class="w-5 h-5 bg-slate-800 text-[10px] rounded flex items-center justify-center text-slate-300">+</button>
+              </div>`;
+            episodeSelectHTML = `
+              <div class="flex items-center gap-1 border-l border-slate-800 pl-2">
+                <span class="text-[11px] text-slate-300 font-bold">E${episode}</span>
+                <button onclick="changeEpisodeManual(${item.id}, ${episode}, -1)" class="w-5 h-5 bg-slate-800 text-[10px] rounded flex items-center justify-center text-slate-300">-</button>
+                <button onclick="changeEpisodeManual(${item.id}, ${episode}, 1)" class="w-5 h-5 bg-pink-600 text-[10px] rounded flex items-center justify-center text-white font-bold">+1</button>
+              </div>`;
+          }
+        }
+
         const card = document.createElement('div');
         card.className = "bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden flex gap-4 p-3 relative shadow-md";
         card.innerHTML = `
@@ -149,20 +203,8 @@
             </div>
 
             ${isTV ? `
-              <div class="mt-2 bg-slate-950 p-2 rounded-xl flex items-center justify-between border border-slate-800 gap-1">
-                <!-- Temporada -->
-                <div class="flex items-center gap-1">
-                  <span class="text-[11px] text-slate-400 font-bold">T${season}</span>
-                  <button onclick="changeSeason(${item.id},${season}, -1)" class="w-5 h-5 bg-slate-800 text-[10px] rounded flex items-center justify-center text-slate-300">-</button>
-                  <button onclick="changeSeason(${item.id},${season}, 1)" class="w-5 h-5 bg-slate-800 text-[10px] rounded flex items-center justify-center text-slate-300">+</button>
-                </div>
-
-                <!-- Episodio -->
-                <div class="flex items-center gap-1 border-l border-slate-800 pl-2">
-                  <span class="text-[11px] text-slate-300 font-bold">E${episode}</span>
-                  <button onclick="changeEpisode(${item.id},${episode}, -1)" class="w-5 h-5 bg-slate-800 text-[10px] rounded flex items-center justify-center text-slate-300">-</button>
-                  <button onclick="changeEpisode(${item.id},${episode}, 1)" class="w-5 h-5 bg-pink-600 text-[10px] rounded flex items-center justify-center text-white font-bold">+1</button>
-                </div>
+              <div class="mt-2 bg-slate-950 p-2 rounded-xl flex items-center justify-between border border-slate-800 gap-1 overflow-x-auto hide-scrollbar">
+                ${seasonSelectHTML}${episodeSelectHTML}
               </div>
             ` : ''}
 
@@ -172,7 +214,7 @@
           </div>
         `;
         grid.appendChild(card);
-      });
+      }
     }
 
     function getCategoryLabel(cat) {
@@ -214,6 +256,7 @@
         const data = await res.json();
         if (data && data.length > 0) {
           results = data.map(entry => ({
+            show_id: entry.show.id,
             title: entry.show.name,
             type: 'tv',
             poster: entry.show.image ? entry.show.image.medium : 'https://via.placeholder.com/200x300?text=Sin+Imagen',
@@ -292,13 +335,14 @@
       const category = document.querySelector('input[name="category"]:checked').value;
       
       const newItem = {
+        show_id: tempSelectedItem.show_id ? String(tempSelectedItem.show_id) : null,
         title: tempSelectedItem.title,
         type: tempSelectedItem.type,
         poster: tempSelectedItem.poster,
         overview: tempSelectedItem.overview,
         category: category,
-        season: tempSelectedItem.season || 1,
-        episode: tempSelectedItem.episode || 1
+        season: 1,
+        episode: 1
       };
 
       const { error } = await supabaseClient.from('media').insert([newItem]);
@@ -312,13 +356,23 @@
       }
     }
 
-    async function changeSeason(id, currentSeason, delta) {
+    async function updateSeasonDropdown(id, newSeason) {
+      await supabaseClient.from('media').update({ season: Number(newSeason), episode: 1 }).eq('id', id);
+      fetchMedia();
+    }
+
+    async function updateEpisodeDropdown(id, newEp) {
+      await supabaseClient.from('media').update({ episode: Number(newEp) }).eq('id', id);
+      fetchMedia();
+    }
+
+    async function changeSeasonManual(id, currentSeason, delta) {
       const newSeason = Math.max(1, currentSeason + delta);
       await supabaseClient.from('media').update({ season: newSeason, episode: 1 }).eq('id', id);
       fetchMedia();
     }
 
-    async function changeEpisode(id, currentEp, delta) {
+    async function changeEpisodeManual(id, currentEp, delta) {
       const newEp = Math.max(1, currentEp + delta);
       await supabaseClient.from('media').update({ episode: newEp }).eq('id', id);
       fetchMedia();
@@ -333,7 +387,7 @@
     function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 
     fetchMedia();
-    setInterval(fetchMedia, 4000);
+    setInterval(fetchMedia, 5000);
   </script>
 </body>
 </html>
