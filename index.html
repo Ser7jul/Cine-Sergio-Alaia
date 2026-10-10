@@ -2,13 +2,14 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Cine & Series - Sergio y Alaia</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- CSS Ligero sin bloquéos -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
-    body { background-color: #0f172a; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; }
+    body { background-color: #0f172a; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; touch-action: manipulation; }
     .hide-scrollbar::-webkit-scrollbar { display: none; }
     .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   </style>
@@ -16,17 +17,15 @@
 <body class="pb-24">
 
   <!-- Header -->
-  <header class="sticky top-0 z-50 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 p-4 flex justify-between items-center">
-    <h1 class="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
-      🎬 Sergio & Alaia
-    </h1>
-    <button onclick="openAddModal()" class="bg-pink-600 hover:bg-pink-500 text-white px-4 py-2 rounded-full text-sm font-semibold flex items-center gap-1 shadow-lg shadow-pink-600/30">
+  <header class="sticky top-0 z-40 bg-slate-900 border-b border-slate-800 p-4 flex justify-between items-center">
+    <h1 class="text-xl font-bold text-pink-500">🎬 Sergio & Alaia</h1>
+    <button id="open-btn" type="button" class="bg-pink-600 active:bg-pink-700 text-white px-4 py-2 rounded-full text-sm font-semibold flex items-center gap-1 shadow-lg">
       <i class="fa-solid fa-plus"></i> Añadir
     </button>
   </header>
 
   <!-- Filtros -->
-  <nav class="flex gap-2 p-4 overflow-x-auto hide-scrollbar border-b border-slate-800 bg-slate-950/50">
+  <nav class="flex gap-2 p-4 overflow-x-auto hide-scrollbar border-b border-slate-800 bg-slate-950">
     <button onclick="setFilter('TODOS')" id="btn-TODOS" class="filter-btn bg-pink-600 text-white px-4 py-1.5 rounded-full text-sm whitespace-nowrap font-medium">Todos</button>
     <button onclick="setFilter('SERGIO')" id="btn-SERGIO" class="filter-btn bg-slate-800 text-slate-300 px-4 py-1.5 rounded-full text-sm whitespace-nowrap font-medium">👦 Sergio</button>
     <button onclick="setFilter('ALAIA')" id="btn-ALAIA" class="filter-btn bg-slate-800 text-slate-300 px-4 py-1.5 rounded-full text-sm whitespace-nowrap font-medium">👩 Alaia</button>
@@ -36,26 +35,26 @@
 
   <!-- Catálogo -->
   <main id="content-grid" class="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-    <div class="col-span-full text-center py-12 text-slate-500 text-sm">Cargando...</div>
+    <div class="col-span-full text-center py-12 text-slate-500 text-sm">Cargando catálogo...</div>
   </main>
 
   <!-- Modal Añadir -->
-  <div id="add-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
-    <div class="bg-slate-900 border border-slate-800 w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl p-5 max-h-[90vh] flex flex-col">
+  <div id="add-modal" class="fixed inset-0 bg-black bg-opacity-80 z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-slate-900 border border-slate-800 w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl p-5 max-h-90vh flex flex-col overflow-y-auto">
       <div class="flex justify-between items-center mb-4">
         <h2 class="text-lg font-bold text-white">Añadir Película o Serie</h2>
-        <button onclick="closeAddModal()" class="text-slate-400 hover:text-white text-2xl p-1">&times;</button>
+        <button id="close-btn" type="button" class="text-slate-400 hover:text-white text-2xl px-2 py-1">&times;</button>
       </div>
 
-      <!-- Selector Tipo Búsqueda -->
+      <!-- Tipo -->
       <div class="flex gap-2 mb-3 bg-slate-950 p-1 rounded-xl border border-slate-800">
         <button type="button" onclick="setSearchType('movie')" id="type-movie-btn" class="flex-1 py-1.5 text-xs font-bold rounded-lg bg-pink-600 text-white">🎬 Películas</button>
         <button type="button" onclick="setSearchType('tv')" id="type-tv-btn" class="flex-1 py-1.5 text-xs font-bold rounded-lg text-slate-400">📺 Series</button>
       </div>
 
       <form onsubmit="executeSearch(event)" class="relative mb-2 flex gap-2">
-        <input type="text" id="tmdb-search" placeholder="Escribe el nombre (ej: Titanic)..." class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-pink-500 text-white">
-        <button type="submit" class="bg-pink-600 text-white px-4 py-2.5 rounded-xl text-xs font-semibold hover:bg-pink-500 flex-shrink-0">Buscar</button>
+        <input type="text" id="tmdb-search" placeholder="Escribe el nombre..." class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none text-white">
+        <button type="submit" class="bg-pink-600 text-white px-4 py-2.5 rounded-xl text-xs font-semibold flex-shrink-0">Buscar</button>
       </form>
 
       <div class="flex justify-between items-center mb-3">
@@ -70,7 +69,7 @@
           <img id="preview-img" src="" class="w-10 h-14 object-cover rounded-md">
           <div>
             <h4 id="preview-title" class="text-xs font-bold text-white"></h4>
-            <p id="preview-type" class="text-[10px] text-pink-400 font-bold uppercase"></p>
+            <p id="preview-type" class="text-10px text-pink-400 font-bold uppercase"></p>
           </div>
         </div>
 
@@ -114,9 +113,13 @@
     let mediaList = [];
     let tempSelectedItem = null;
 
-    function openAddModal() {
+    document.getElementById('open-btn').addEventListener('click', function() {
       document.getElementById('add-modal').classList.remove('hidden');
-    }
+    });
+
+    document.getElementById('close-btn').addEventListener('click', function() {
+      closeAddModal();
+    });
 
     function closeAddModal() {
       document.getElementById('add-modal').classList.add('hidden');
@@ -190,8 +193,208 @@
                 <button onclick="deleteItem(${item.id})" class="text-slate-600 hover:text-red-400 text-xs px-1">&times;</button>
               </div>
               <div class="flex gap-1 items-center mt-1">
-                <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-800 text-pink-400 border border-slate-700">
+                <span class="text-xs font-bold px-2 py-0.5 rounded-md bg-slate-800 text-pink-400 border border-slate-700">
                   ${getCategoryLabel(item.category)}
                 </span>
-                <span class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-400 border border-slate-700/50">
-                  ${is
+                <span class="text-xs font-medium px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                  ${isTV ? '📺 Serie' : '🎬 Película'}
+                </span>
+              </div>
+              <p class="text-xs text-slate-400 mt-2 line-clamp-2">${item.overview || 'Sin descripción disponible.'}</p>
+            </div>
+
+            ${isTV ? `
+              <div class="mt-2 bg-slate-950 p-2 rounded-xl flex items-center justify-between border border-slate-800 gap-2">
+                <select onchange="updateSeasonDropdown(${item.id}, this.value)" class="bg-slate-800 text-white text-xs rounded-lg border border-slate-700 p-1.5 focus:outline-none">
+                  ${seasonOptions}
+                </select>
+                <select onchange="updateEpisodeDropdown(${item.id}, this.value)" class="bg-slate-800 text-white text-xs rounded-lg border border-slate-700 p-1.5 focus:outline-none">
+                  ${episodeOptions}
+                </select>
+              </div>
+            ` : ''}
+
+            <a href="${faSearchUrl}" target="_blank" class="mt-2 text-xs text-amber-400 hover:underline flex items-center gap-1 font-medium">
+              <i class="fa-solid fa-star text-xs"></i> Ver en FilmAffinity
+            </a>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function getCategoryLabel(cat) {
+      switch(cat) {
+        case 'SERGIO': return '👦 Sergio';
+        case 'ALAIA': return '👩 Alaia';
+        case 'JUNTOS': return '👩‍❤️‍👨 Juntos';
+        case 'NIÑA': return '👧 Con la Niña';
+        default: return cat;
+      }
+    }
+
+    function setFilter(filter) {
+      currentFilter = filter;
+      document.querySelectorAll('.filter-btn').forEach(b => {
+        b.className = "filter-btn bg-slate-800 text-slate-300 px-4 py-1.5 rounded-full text-sm whitespace-nowrap font-medium";
+      });
+      const activeBtn = document.getElementById(`btn-${filter}`);
+      if (activeBtn) activeBtn.className = "filter-btn bg-pink-600 text-white px-4 py-1.5 rounded-full text-sm whitespace-nowrap font-medium";
+      renderList();
+    }
+
+    async function executeSearch(e) {
+      if (e) e.preventDefault();
+      const input = document.getElementById('tmdb-search');
+      const query = input.value.trim();
+      const status = document.getElementById('status-msg');
+      const resultsDiv = document.getElementById('search-results');
+
+      if (!query) return;
+
+      status.innerText = "Buscando...";
+      status.classList.remove('hidden');
+      resultsDiv.innerHTML = '';
+      document.getElementById('selected-item-form').classList.add('hidden');
+
+      let results = [];
+
+      try {
+        if (searchType === 'movie') {
+          const res = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${TMDB_KEY}&language=es-ES&query=${encodeURIComponent(query)}`);
+          const data = await res.json();
+          if (data && data.results && data.results.length > 0) {
+            data.results.slice(0, 6).forEach(m => {
+              results.push({
+                title: m.title,
+                type: 'movie',
+                poster: m.poster_path ? `https://image.tmdb.org/t/p/w300${m.poster_path}` : 'https://via.placeholder.com/200x300?text=Sin+Imagen',
+                overview: m.overview || 'Película'
+              });
+            });
+          }
+        } else {
+          const res = await fetch(`https://api.tvmaze.com/search/shows?q=${encodeURIComponent(query)}`);
+          const data = await res.json();
+          if (data) {
+            data.slice(0, 6).forEach(s => {
+              results.push({
+                title: s.show.name,
+                type: 'tv',
+                poster: s.show.image ? s.show.image.medium : 'https://via.placeholder.com/200x300?text=Sin+Imagen',
+                overview: s.show.summary ? s.show.summary.replace(/<[^>]*>?/gm, '') : 'Serie'
+              });
+            });
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      }
+
+      status.classList.add('hidden');
+
+      if (results.length === 0) {
+        resultsDiv.innerHTML = `
+          <div class="text-center py-4">
+            <p class="text-xs text-slate-400 mb-2">No se encontraron resultados para "${query}".</p>
+            <button type="button" onclick="addManualItem()" class="bg-slate-800 text-pink-400 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-semibold">
+              + Añadir "${query}" manualmente como ${searchType === 'movie' ? 'Película' : 'Serie'}
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      results.forEach(item => {
+        const row = document.createElement('div');
+        row.className = "flex items-center gap-3 p-2 bg-slate-800 bg-opacity-60 rounded-xl cursor-pointer hover:bg-slate-800 transition border border-slate-700";
+        row.onclick = () => selectItem(item);
+
+        row.innerHTML = `
+          <img src="${item.poster}" class="w-10 h-14 object-cover rounded-md flex-shrink-0" onerror="this.src='https://via.placeholder.com/200x300?text=Sin+Imagen'">
+          <div class="overflow-hidden flex-1">
+            <div class="flex items-center justify-between">
+              <h4 class="text-xs font-bold text-white truncate">${item.title}</h4>
+              <span class="text-xs font-semibold px-1.5 py-0.5 rounded ${item.type === 'movie' ? 'bg-amber-500 bg-opacity-20 text-amber-300' : 'bg-purple-500 bg-opacity-20 text-purple-300'}">
+                ${item.type === 'movie' ? '🎬 Película' : '📺 Serie'}
+              </span>
+            </div>
+            <p class="text-xs text-slate-400 line-clamp-1 mt-0.5">${item.overview}</p>
+          </div>
+        `;
+        resultsDiv.appendChild(row);
+      });
+    }
+
+    function addManualItem() {
+      const query = document.getElementById('tmdb-search').value.trim() || 'Nueva Entrada';
+      selectItem({
+        title: query,
+        type: searchType,
+        poster: 'https://via.placeholder.com/200x300?text=' + encodeURIComponent(query),
+        overview: 'Añadido manualmente.',
+        season: 1,
+        episode: 1
+      });
+    }
+
+    function selectItem(item) {
+      tempSelectedItem = item;
+      document.getElementById('preview-img').src = item.poster;
+      document.getElementById('preview-title').innerText = item.title;
+      document.getElementById('preview-type').innerText = item.type === 'tv' ? '📺 Serie' : '🎬 Película';
+      document.getElementById('selected-item-form').classList.remove('hidden');
+    }
+
+    async function saveSelectedItem() {
+      if (!tempSelectedItem || !supabaseClient) return;
+      
+      const btn = document.getElementById('save-btn');
+      btn.innerText = "Guardando...";
+      btn.disabled = true;
+
+      const category = document.querySelector('input[name="category"]:checked').value;
+      
+      const newItem = {
+        title: tempSelectedItem.title,
+        type: tempSelectedItem.type,
+        poster: tempSelectedItem.poster,
+        overview: tempSelectedItem.overview,
+        category: category,
+        episode: 1
+      };
+
+      const { error } = await supabaseClient.from('media').insert([newItem]);
+      
+      btn.innerText = "Guardar en la Lista";
+      btn.disabled = false;
+
+      if (!error) {
+        tempSelectedItem = null;
+        closeAddModal();
+        fetchMedia();
+      } else {
+        alert("Error al guardar: " + error.message);
+      }
+    }
+
+    async function updateSeasonDropdown(id, newSeason) {
+      await supabaseClient.from('media').update({ season: Number(newSeason), episode: 1 }).eq('id', id);
+      fetchMedia();
+    }
+
+    async function updateEpisodeDropdown(id, newEp) {
+      await supabaseClient.from('media').update({ episode: Number(newEp) }).eq('id', id);
+      fetchMedia();
+    }
+
+    async function deleteItem(id) {
+      await supabaseClient.from('media').delete().eq('id', id);
+      fetchMedia();
+    }
+
+    fetchMedia();
+    setInterval(fetchMedia, 5000);
+  </script>
+</body>
+</html>
