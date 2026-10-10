@@ -118,12 +118,12 @@
         <i class="fa-solid fa-angle-down"></i>
       </button>
 
-      <button onclick="moveItem('TOP')" class="bg-pink-600/20 hover:bg-pink-600 text-pink-300 hover:text-white py-2.5 px-4 rounded-xl text-xs font-semibold flex items-center justify-between border border-pink-500/30 active:scale-95 transition">
+      <button onclick="moveItem('TOP')" class="bg-slate-800 hover:bg-slate-700 text-white py-2.5 px-4 rounded-xl text-xs font-semibold flex items-center justify-between border border-white/10 active:scale-95 transition">
         <span>🔝 Mover al principio</span>
         <i class="fa-solid fa-angles-up"></i>
       </button>
 
-      <button onclick="moveItem('BOTTOM')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 px-4 rounded-xl text-xs font-semibold flex items-center justify-between border border-white/10 active:scale-95 transition">
+      <button onclick="moveItem('BOTTOM')" class="bg-slate-800 hover:bg-slate-700 text-white py-2.5 px-4 rounded-xl text-xs font-semibold flex items-center justify-between border border-white/10 active:scale-95 transition">
         <span>🔚 Mover al final</span>
         <i class="fa-solid fa-angles-down"></i>
       </button>
@@ -215,7 +215,6 @@
       currentUser = user;
       localStorage.setItem('app_user', user);
       
-      // Ocultar la pantalla de inmediato con style.display
       const screen = document.getElementById('user-select-screen');
       if (screen) {
         screen.style.display = 'none';
