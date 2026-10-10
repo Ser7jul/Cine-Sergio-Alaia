@@ -12,7 +12,6 @@
     .hide-scrollbar::-webkit-scrollbar { display: none; }
     .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     
-    /* Overlay nativo sin bloqueos */
     .custom-modal {
       display: none;
       position: fixed;
@@ -115,7 +114,7 @@
   <script>
     const SUPABASE_URL = "https://bvqzsonynnrwwiywgnox.supabase.co";
     const SUPABASE_KEY = "sb_publishable_Adn054C4cgLhzqoM7ZS7kQ_ZLNfkV0J";
-    const TMDB_KEY = "15d1607f37165a5b85e9e9cb73cd2e0a";
+    const TMDB_KEY = "8baba8ab6b8bbe247645bcae7df63d0d";
 
     let supabaseClient = null;
     try {
@@ -273,34 +272,58 @@
 
       try {
         if (searchType === 'movie') {
+          // Búsqueda principal con TMDB
           const res = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${TMDB_KEY}&language=es-ES&query=${encodeURIComponent(query)}`);
-          const data = await res.json();
-          if (data && data.results && data.results.length > 0) {
-            data.results.slice(0, 6).forEach(m => {
-              results.push({
-                title: m.title,
-                type: 'movie',
-                poster: m.poster_path ? `https://image.tmdb.org/t/p/w300${m.poster_path}` : 'https://via.placeholder.com/200x300?text=Sin+Imagen',
-                overview: m.overview || 'Película'
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.results && data.results.length > 0) {
+              data.results.slice(0, 6).forEach(m => {
+                results.push({
+                  title: m.title,
+                  type: 'movie',
+                  poster: m.poster_path ? `https://image.tmdb.org/t/p/w300${m.poster_path}` : 'https://via.placeholder.com/200x300?text=Sin+Imagen',
+                  overview: m.overview || 'Película'
+                });
               });
-            });
+            }
+          }
+          
+          // Respaldo secundario si TMDB no devuelve nada
+          if (results.length === 0) {
+            const resBackup = await fetch(`https://www.omdbapi.com/?apikey=trilogy&s=${encodeURIComponent(query)}&type=movie`);
+            if (resBackup.ok) {
+              const dataBackup = await resBackup.json();
+              if (dataBackup && dataBackup.Search) {
+                dataBackup.Search.slice(0, 6).forEach(m => {
+                  results.push({
+                    title: m.Title,
+                    type: 'movie',
+                    poster: (m.Poster && m.Poster !== 'N/A') ? m.Poster : 'https://via.placeholder.com/200x300?text=Sin+Imagen',
+                    overview: `Año: ${m.Year}`
+                  });
+                });
+              }
+            }
           }
         } else {
+          // Búsqueda de series en TVMaze
           const res = await fetch(`https://api.tvmaze.com/search/shows?q=${encodeURIComponent(query)}`);
-          const data = await res.json();
-          if (data) {
-            data.slice(0, 6).forEach(s => {
-              results.push({
-                title: s.show.name,
-                type: 'tv',
-                poster: s.show.image ? s.show.image.medium : 'https://via.placeholder.com/200x300?text=Sin+Imagen',
-                overview: s.show.summary ? s.show.summary.replace(/<[^>]*>?/gm, '') : 'Serie'
+          if (res.ok) {
+            const data = await res.json();
+            if (data) {
+              data.slice(0, 6).forEach(s => {
+                results.push({
+                  title: s.show.name,
+                  type: 'tv',
+                  poster: s.show.image ? s.show.image.medium : 'https://via.placeholder.com/200x300?text=Sin+Imagen',
+                  overview: s.show.summary ? s.show.summary.replace(/<[^>]*>?/gm, '') : 'Serie'
+                });
               });
-            });
+            }
           }
         }
       } catch (e) {
-        console.error(e);
+        console.error("Error en la búsqueda:", e);
       }
 
       status.classList.add('hidden');
