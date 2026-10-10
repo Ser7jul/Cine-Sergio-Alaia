@@ -54,7 +54,7 @@
       </div>
 
       <form onsubmit="executeSearch(event)" class="relative mb-2 flex gap-2">
-        <input type="text" id="tmdb-search" placeholder="Escribe el nombre..." class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-pink-500 text-white">
+        <input type="text" id="tmdb-search" placeholder="Escribe el nombre (ej: Titanic)..." class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-pink-500 text-white">
         <button type="submit" class="bg-pink-600 text-white px-4 py-2.5 rounded-xl text-xs font-semibold hover:bg-pink-500 flex-shrink-0">Buscar</button>
       </form>
 
@@ -257,19 +257,23 @@
 
       try {
         if (searchType === 'movie') {
-          const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=movie&limit=6`);
+          // Búsqueda de películas en TMDB vía proxy universal rápido sin CORS
+          const res = await fetch(`https://search.imdbot.workers.dev/?q=${encodeURIComponent(query)}`);
           const data = await res.json();
-          if (data && data.results) {
-            data.results.forEach(m => {
-              results.push({
-                title: m.trackName,
-                type: 'movie',
-                poster: m.artworkUrl100 ? m.artworkUrl100.replace('100x100bb', '300x300bb') : 'https://via.placeholder.com/200x300?text=Sin+Imagen',
-                overview: m.longDescription || m.shortDescription || 'Película'
-              });
+          if (data && data.description && data.description.length > 0) {
+            data.description.forEach(m => {
+              if (m['#TITLE']) {
+                results.push({
+                  title: m['#TITLE'],
+                  type: 'movie',
+                  poster: m['#IMG_POSTER'] || 'https://via.placeholder.com/200x300?text=Sin+Imagen',
+                  overview: `Año: ${m['#YEAR'] || 'Desconocido'} - Protagonizada por ${m['#ACTORS'] || 'Varios actores'}`
+                });
+              }
             });
           }
         } else {
+          // Búsqueda de series en TVMaze
           const res = await fetch(`https://api.tvmaze.com/search/shows?q=${encodeURIComponent(query)}`);
           const data = await res.json();
           if (data) {
