@@ -36,7 +36,7 @@
 
   <!-- Catálogo -->
   <main id="content-grid" class="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-    <div class="col-span-full text-center py-12 text-slate-500 text-sm">Cargando...</div>
+    <div class="col-span-full text-center py-12 text-slate-500 text-sm">Cargando catálogo...</div>
   </main>
 
   <!-- Modal Añadir -->
@@ -54,13 +54,13 @@
       </div>
 
       <form onsubmit="executeSearch(event)" class="relative mb-2 flex gap-2">
-        <input type="text" id="tmdb-search" placeholder="Escribe el nombre (ej: Titanic)..." class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-pink-500 text-white">
+        <input type="text" id="tmdb-search" placeholder="Escribe el nombre (ej: Titanic, Gladiator)..." class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-pink-500 text-white">
         <button type="submit" class="bg-pink-600 text-white px-4 py-2.5 rounded-xl text-xs font-semibold hover:bg-pink-500 flex-shrink-0">Buscar</button>
       </form>
 
       <div class="flex justify-between items-center mb-3">
         <span id="status-msg" class="text-xs text-slate-400 hidden">Buscando...</span>
-        <button type="button" onclick="addManualItem()" class="text-xs text-pink-400 hover:underline ml-auto">+ Añadir rápido manualmente</button>
+        <button type="button" onclick="addManualItem()" class="text-xs text-pink-400 hover:underline ml-auto">+ Añadir rápido directamente</button>
       </div>
 
       <div id="search-results" class="flex-1 overflow-y-auto space-y-2 pr-1 hide-scrollbar max-h-60 mb-4"></div>
@@ -256,36 +256,18 @@
       let results = [];
 
       try {
-        if (searchType === 'movie') {
-          // Búsqueda de películas en TMDB vía proxy universal rápido sin CORS
-          const res = await fetch(`https://search.imdbot.workers.dev/?q=${encodeURIComponent(query)}`);
-          const data = await res.json();
-          if (data && data.description && data.description.length > 0) {
-            data.description.forEach(m => {
-              if (m['#TITLE']) {
-                results.push({
-                  title: m['#TITLE'],
-                  type: 'movie',
-                  poster: m['#IMG_POSTER'] || 'https://via.placeholder.com/200x300?text=Sin+Imagen',
-                  overview: `Año: ${m['#YEAR'] || 'Desconocido'} - Protagonizada por ${m['#ACTORS'] || 'Varios actores'}`
-                });
-              }
+        // Usamos TVMaze como motor universal resistente a CORS para series y películas
+        const res = await fetch(`https://api.tvmaze.com/search/shows?q=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        if (data && data.length > 0) {
+          data.slice(0, 8).forEach(s => {
+            results.push({
+              title: s.show.name,
+              type: searchType, // Respeta lo seleccionado (Película o Serie)
+              poster: s.show.image ? s.show.image.medium : 'https://via.placeholder.com/200x300?text=' + encodeURIComponent(s.show.name),
+              overview: s.show.summary ? s.show.summary.replace(/<[^>]*>?/gm, '') : (searchType === 'movie' ? 'Película' : 'Serie')
             });
-          }
-        } else {
-          // Búsqueda de series en TVMaze
-          const res = await fetch(`https://api.tvmaze.com/search/shows?q=${encodeURIComponent(query)}`);
-          const data = await res.json();
-          if (data) {
-            data.slice(0, 6).forEach(s => {
-              results.push({
-                title: s.show.name,
-                type: 'tv',
-                poster: s.show.image ? s.show.image.medium : 'https://via.placeholder.com/200x300?text=Sin+Imagen',
-                overview: s.show.summary ? s.show.summary.replace(/<[^>]*>?/gm, '') : 'Serie'
-              });
-            });
-          }
+          });
         }
       } catch (e) {
         console.error(e);
@@ -296,7 +278,7 @@
       if (results.length === 0) {
         resultsDiv.innerHTML = `
           <div class="text-center py-4">
-            <p class="text-xs text-slate-400 mb-2">No se encontraron resultados automáticos.</p>
+            <p class="text-xs text-slate-400 mb-2">No se encontraron resultados para "${query}".</p>
             <button type="button" onclick="addManualItem()" class="bg-slate-800 text-pink-400 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-semibold">
               + Añadir "${query}" manualmente como ${searchType === 'movie' ? 'Película' : 'Serie'}
             </button>
