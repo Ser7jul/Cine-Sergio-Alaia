@@ -163,7 +163,7 @@
     let searchType = 'movie';
     let mediaList = [];
     let tempSelectedItem = null;
-    let tvDetailsCache = {}; // Cache de detalles (temporadas, caps, próximas fechas)
+    let tvDetailsCache = {};
 
     function selectUser(user) {
       currentUser = user;
@@ -261,7 +261,6 @@
       }
     }
 
-    // Carga los datos reales de temporadas y capítulos desde TMDB
     async function loadTvRealData() {
       const tvItems = mediaList.filter(item => item.type === 'tv' && item.tmdb_id);
       for (const item of tvItems) {
@@ -271,7 +270,6 @@
           if (res.ok) {
             const data = await res.json();
             
-            // Filtrar solo temporadas oficiales (descartar especiales de temporada 0)
             const seasons = (data.seasons || []).filter(s => s.season_number > 0);
             
             let badge = '';
@@ -281,7 +279,7 @@
             } else if (data.status === 'Ended' || data.status === 'Canceled') {
               badge = `✅ Finalizada`;
             } else {
-              badge = `🗓️ En emisión`;
+              badge = `⏳ Sin fecha confirmada`;
             }
 
             tvDetailsCache[item.tmdb_id] = {
@@ -321,9 +319,8 @@
         const tvDetails = isTV && item.tmdb_id && tvDetailsCache[item.tmdb_id] ? tvDetailsCache[item.tmdb_id] : null;
         const upcomingBadge = tvDetails ? tvDetails.badge : null;
 
-        // Generar opciones de Temporadas reales
         let seasonOptions = '';
-        let maxEpisodesInCurrentSeason = 30; // Valor por defecto si aún no ha cargado la API
+        let maxEpisodesInCurrentSeason = 30;
 
         if (tvDetails && tvDetails.seasons.length > 0) {
           tvDetails.seasons.forEach(s => {
@@ -338,7 +335,6 @@
           }
         }
 
-        // Generar opciones de Capítulos reales
         let episodeOptions = '';
         for (let e = 1; e <= maxEpisodesInCurrentSeason; e++) {
           episodeOptions += `<option value="${e}" ${e == currentEpisodeNum ? 'selected' : ''}>Cap. ${e}</option>`;
@@ -367,7 +363,7 @@
                   ${isTV ? '📺 Serie' : '🎬 Película'}
                 </span>
                 ${upcomingBadge ? `
-                  <span class="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-amber-950/70 text-amber-300 border border-amber-500/30">
+                  <span class="text-[10px] font-semibold px-2 py-0.5 rounded-md ${upcomingBadge.includes('Próx') ? 'bg-amber-950/70 text-amber-300 border border-amber-500/30' : (upcomingBadge.includes('Finalizada') ? 'bg-emerald-950/70 text-emerald-300 border border-emerald-500/30' : 'bg-slate-800 text-slate-400 border border-white/10')}">
                     ${upcomingBadge}
                   </span>
                 ` : ''}
