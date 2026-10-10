@@ -72,11 +72,11 @@
     </button>
   </header>
 
-  <!-- Filtros Principales (Categoría) -->
+  <!-- Filtros Principales -->
   <nav id="filter-nav" class="flex gap-2 p-3 overflow-x-auto hide-scrollbar border-b border-white/10 bg-slate-950/80">
   </nav>
 
-  <!-- Subfiltros de Tipo (Todo / Películas / Series) -->
+  <!-- Subfiltros de Tipo -->
   <div class="flex justify-center gap-2 px-4 py-2.5 bg-slate-900/50 border-b border-white/5">
     <button onclick="setMediaTypeFilter('ALL')" id="media-type-ALL" class="media-type-btn text-xs font-semibold px-3 py-1 rounded-lg bg-pink-600 text-white border border-white/20">🍿 Todo</button>
     <button onclick="setMediaTypeFilter('movie')" id="media-type-movie" class="media-type-btn text-xs font-semibold px-3 py-1 rounded-lg bg-slate-800 text-slate-400 border border-white/10">🎬 Películas</button>
@@ -163,7 +163,7 @@
     let searchType = 'movie';
     let mediaList = [];
     let tempSelectedItem = null;
-    let tvReleaseDates = {}; // Cache de fechas próximas
+    let tvDetailsCache = {}; // Cache de detalles (temporadas, caps, próximas fechas)
 
     function selectUser(user) {
       currentUser = user;
@@ -254,31 +254,41 @@
         if (!error && data) {
           mediaList = data.sort((a, b) => (b.id || 0) - (a.id || 0));
           renderList();
-          checkUpcomingTvDates();
+          loadTvRealData();
         }
       } catch (e) {
         console.error(e);
       }
     }
 
-    // Consulta la fecha del próximo estreno en TMDB
-    async function checkUpcomingTvDates() {
+    // Carga los datos reales de temporadas y capítulos desde TMDB
+    async function loadTvRealData() {
       const tvItems = mediaList.filter(item => item.type === 'tv' && item.tmdb_id);
       for (const item of tvItems) {
-        if (tvReleaseDates[item.tmdb_id]) continue;
+        if (tvDetailsCache[item.tmdb_id]) continue;
         try {
           const res = await fetch(`https://api.themoviedb.org/3/tv/${item.tmdb_id}?api_key=${TMDB_KEY}&language=es-ES`);
           if (res.ok) {
             const data = await res.json();
+            
+            // Filtrar solo temporadas oficiales (descartar especiales de temporada 0)
+            const seasons = (data.seasons || []).filter(s => s.season_number > 0);
+            
+            let badge = '';
             if (data.next_episode_to_air && data.next_episode_to_air.air_date) {
               const airDate = new Date(data.next_episode_to_air.air_date);
-              const formattedDate = airDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
-              tvReleaseDates[item.tmdb_id] = `🗓️ Próx: ${formattedDate}`;
+              badge = `🗓️ Próx: ${airDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}`;
             } else if (data.status === 'Ended' || data.status === 'Canceled') {
-              tvReleaseDates[item.tmdb_id] = `✅ Finalizada`;
+              badge = `✅ Finalizada`;
             } else {
-              tvReleaseDates[item.tmdb_id] = `🗓️ En emisión`;
+              badge = `🗓️ En emisión`;
             }
+
+            tvDetailsCache[item.tmdb_id] = {
+              seasons: seasons,
+              badge: badge
+            };
+
             renderList();
           }
         } catch(e) {}
@@ -305,18 +315,33 @@
         const isTV = item.type === 'tv';
         const isCompleted = item.completed || false;
         const faSearchUrl = `https://www.filmaffinity.com/es/search.php?stext=${encodeURIComponent(item.title)}`;
-        const season = item.season || 1;
-        const episode = item.episode || 1;
-        const upcomingBadge = isTV && item.tmdb_id && tvReleaseDates[item.tmdb_id] ? tvReleaseDates[item.tmdb_id] : null;
+        const currentSeasonNum = item.season || 1;
+        const currentEpisodeNum = item.episode || 1;
 
+        const tvDetails = isTV && item.tmdb_id && tvDetailsCache[item.tmdb_id] ? tvDetailsCache[item.tmdb_id] : null;
+        const upcomingBadge = tvDetails ? tvDetails.badge : null;
+
+        // Generar opciones de Temporadas reales
         let seasonOptions = '';
-        for (let s = 1; s <= 15; s++) {
-          seasonOptions += `<option value="${s}" ${s == season ? 'selected' : ''}>Temp. ${s}</option>`;
+        let maxEpisodesInCurrentSeason = 30; // Valor por defecto si aún no ha cargado la API
+
+        if (tvDetails && tvDetails.seasons.length > 0) {
+          tvDetails.seasons.forEach(s => {
+            seasonOptions += `<option value="${s.season_number}" ${s.season_number == currentSeasonNum ? 'selected' : ''}>Temp. ${s.season_number}</option>`;
+            if (s.season_number == currentSeasonNum) {
+              maxEpisodesInCurrentSeason = s.episode_count || 30;
+            }
+          });
+        } else {
+          for (let s = 1; s <= 15; s++) {
+            seasonOptions += `<option value="${s}" ${s == currentSeasonNum ? 'selected' : ''}>Temp. ${s}</option>`;
+          }
         }
 
+        // Generar opciones de Capítulos reales
         let episodeOptions = '';
-        for (let e = 1; e <= 50; e++) {
-          episodeOptions += `<option value="${e}" ${e == episode ? 'selected' : ''}>Cap. ${e}</option>`;
+        for (let e = 1; e <= maxEpisodesInCurrentSeason; e++) {
+          episodeOptions += `<option value="${e}" ${e == currentEpisodeNum ? 'selected' : ''}>Cap. ${e}</option>`;
         }
         
         const card = document.createElement('div');
