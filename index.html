@@ -36,7 +36,7 @@
 
   <!-- Catálogo -->
   <main id="content-grid" class="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-    <div class="col-span-full text-center py-12 text-slate-500 text-sm">Cargando catálogo...</div>
+    <div class="col-span-full text-center py-12 text-slate-500 text-sm">Cargando...</div>
   </main>
 
   <!-- Modal Añadir -->
@@ -48,7 +48,7 @@
       </div>
 
       <form onsubmit="event.preventDefault(); executeSearch();" class="relative mb-2 flex gap-2">
-        <input type="text" id="tmdb-search" placeholder="Escribe el nombre (ej: Dexter, Attack on Titan)..." class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-pink-500 text-white">
+        <input type="text" id="tmdb-search" placeholder="Escribe el nombre (ej: Attack on Titan)..." class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-pink-500 text-white">
         <button type="submit" class="bg-pink-600 text-white px-4 py-2.5 rounded-xl text-xs font-semibold hover:bg-pink-500 flex-shrink-0">Buscar</button>
       </form>
 
@@ -93,14 +93,10 @@
 
   <script>
     const SUPABASE_URL = "https://bvqzsonynnrwwiywgnox.supabase.co";
-    const SUPABASE_KEY = "Sb_publishable_Adn054C4cgLhzqoM7ZS7kQ_ZLNfkV0J";
+    // Corregida la clave a minúscula exacta (sb_publishable_...)
+    const SUPABASE_KEY = "sb_publishable_Adn054C4cgLhzqoM7ZS7kQ_ZLNfkV0J";
 
-    let supabaseClient = null;
-    try {
-      supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-    } catch(e) {
-      console.error(e);
-    }
+    const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
     let currentFilter = 'TODOS';
     let mediaList = [];
@@ -114,7 +110,7 @@
           mediaList = data.sort((a, b) => (b.id || 0) - (a.id || 0));
           renderList();
         }
-      } catch(e) {
+      } catch (e) {
         console.error(e);
       }
     }
@@ -292,7 +288,7 @@
     }
 
     async function saveSelectedItem() {
-      if (!tempSelectedItem) return;
+      if (!tempSelectedItem || !supabaseClient) return;
       const category = document.querySelector('input[name="category"]:checked').value;
       
       const newItem = {
@@ -305,20 +301,15 @@
         episode: tempSelectedItem.episode || 1
       };
 
-      let { error } = await supabaseClient.from('media').insert([newItem]);
-      
-      // Si la columna season falla en Supabase, guarda sin season
-      if (error) {
-        delete newItem.season;
-        await supabaseClient.from('media').insert([newItem]);
+      const { error } = await supabaseClient.from('media').insert([newItem]);
+      if (!error) {
+        tempSelectedItem = null;
+        document.getElementById('selected-item-form').classList.add('hidden');
+        document.getElementById('search-results').innerHTML = '';
+        document.getElementById('tmdb-search').value = '';
+        closeModal('add-modal');
+        fetchMedia();
       }
-
-      tempSelectedItem = null;
-      document.getElementById('selected-item-form').classList.add('hidden');
-      document.getElementById('search-results').innerHTML = '';
-      document.getElementById('tmdb-search').value = '';
-      closeModal('add-modal');
-      fetchMedia();
     }
 
     async function changeSeason(id, currentSeason, delta) {
@@ -342,7 +333,7 @@
     function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 
     fetchMedia();
-    setInterval(fetchMedia, 3000);
+    setInterval(fetchMedia, 4000);
   </script>
 </body>
 </html>
