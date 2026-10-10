@@ -6,6 +6,8 @@
   <title>Cine & Series - Sergio y Alaia</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Librería de Reordenado (SortableJS) -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     body { background-color: #0f172a; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; touch-action: manipulation; }
@@ -17,6 +19,20 @@
       border: 1.5px solid rgba(255, 255, 255, 0.2);
       box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
       transition: border-color 0.2s ease, transform 0.2s ease;
+    }
+
+    /* Asa dedicada para arrastrar */
+    .drag-handle {
+      touch-action: none;
+      cursor: grab;
+    }
+    .drag-handle:active {
+      cursor: grabbing;
+    }
+
+    .sortable-ghost {
+      opacity: 0.3;
+      transform: scale(0.98);
     }
 
     .custom-modal {
@@ -180,6 +196,7 @@
     let tempSelectedItem = null;
     let tvDetailsCache = {};
     let catalogQuery = '';
+    let sortableInstance = null;
 
     function selectUser(user) {
       currentUser = user;
@@ -223,7 +240,6 @@
       }
     }
 
-    // Comprueba si la serie pertenece al perfil actual
     function isItemForCurrentUser(itemCategory) {
       if (!currentUser) return false;
       if (currentUser === 'SERGIO') {
@@ -234,7 +250,6 @@
     }
 
     function sendEpisodeNotification(showTitle, pendingCount, category) {
-      // Solo notifica si el item pertenece al usuario en sesión
       if (!isItemForCurrentUser(category)) return;
 
       if ("Notification" in window && Notification.permission === "granted") {
@@ -342,7 +357,7 @@
       try {
         const { data, error } = await supabaseClient.from('media').select('*');
         if (!error && data) {
-          mediaList = data;
+          mediaList = data.sort((a, b) => (a.position ?? 999) - (b.position ?? 999) || (b.id || 0) - (a.id || 0));
           renderList();
           loadTvRealData();
         }
@@ -424,20 +439,6 @@
         return matchCategory && matchType && matchSearch;
       });
 
-      filtered.sort((a, b) => {
-        const aCompleted = a.completed ? 1 : 0;
-        const bCompleted = b.completed ? 1 : 0;
-        
-        if (aCompleted !== bCompleted) return aCompleted - bCompleted;
-        
-        const aIsTv = a.type === 'tv' ? 0 : 1;
-        const bIsTv = b.type === 'tv' ? 0 : 1;
-        
-        if (aIsTv !== bIsTv) return aIsTv - bIsTv;
-
-        return (b.id || 0) - (a.id || 0);
-      });
-
       if (filtered.length === 0) {
         if (catalogQuery.length > 0) {
           grid.innerHTML = `<div class="col-span-full text-center py-12 text-slate-500 text-sm">No se encontraron resultados para "${catalogQuery}".</div>`;
@@ -481,10 +482,16 @@
         }
         
         const card = document.createElement('div');
-        card.className = `card-style rounded-2xl overflow-hidden flex gap-4 p-3.5 relative ${isCompleted ? 'opacity-80 border-emerald-500/40 bg-slate-900/90' : ''}`;
+        card.setAttribute('data-id', item.id);
+        card.className = `card-style rounded-2xl overflow-hidden flex gap-3 p-3 relative ${isCompleted ? 'opacity-80 border-emerald-500/40 bg-slate-900/90' : ''}`;
         card.innerHTML = `
+          <!-- Asa dedicada para arrastrar (Barritas ≡) -->
+          <div class="drag-handle flex items-center justify-center px-1 text-slate-500 hover:text-white transition">
+            <i class="fa-solid fa-bars text-sm"></i>
+          </div>
+
           <div class="relative flex-shrink-0">
-            <img src="${item.poster}" class="w-24 h-36 object-cover rounded-xl border border-white/10 shadow-sm" alt="Poster" onerror="this.src='https://via.placeholder.com/200x300?text=Sin+Imagen'">
+            <img src="${item.poster}" class="w-20 h-32 object-cover rounded-xl border border-white/10 shadow-sm" alt="Poster" onerror="this.src='https://via.placeholder.com/200x300?text=Sin+Imagen'">
             
             ${isCompleted ? `
               <span class="absolute top-1 left-1 bg-emerald-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shadow">VISTA</span>
@@ -495,11 +502,11 @@
             ` : '')}
           </div>
 
-          <div class="flex-1 flex flex-col justify-between py-0.5">
+          <div class="flex-1 flex flex-col justify-between py-0.5 min-w-0">
             <div>
               <div class="flex justify-between items-start gap-1">
-                <h3 class="font-bold text-sm text-white line-clamp-1">${item.title}</h3>
-                <button onclick="deleteItem(${item.id})" class="text-slate-500 hover:text-red-400 text-sm px-1 leading-none">&times;</button>
+                <h3 class="font-bold text-sm text-white truncate">${item.title}</h3>
+                <button onclick="deleteItem(${item.id})" class="text-slate-500 hover:text-red-400 text-sm px-1 leading-none flex-shrink-0">&times;</button>
               </div>
               
               <div class="flex flex-wrap gap-1.5 items-center mt-1">
@@ -516,34 +523,68 @@
                 ` : ''}
               </div>
 
-              <p class="text-xs text-slate-300 mt-2 leading-relaxed line-clamp-3">${item.overview || 'Sin descripción disponible.'}</p>
+              <p class="text-xs text-slate-300 mt-2 leading-relaxed line-clamp-2">${item.overview || 'Sin descripción disponible.'}</p>
             </div>
 
             ${isTV ? `
-              <div class="mt-2 bg-slate-950/80 p-1.5 rounded-xl flex items-center justify-between border border-white/10 gap-1.5">
+              <div class="mt-2 bg-slate-950/80 p-1.5 rounded-xl flex items-center justify-between border border-white/10 gap-1">
                 ${isCompleted ? `
                   <span class="text-xs text-emerald-400 font-semibold px-1">Temporada finalizada</span>
                   <button onclick="toggleCompleted(${item.id}, false)" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded-lg border border-white/10 font-medium">Reanudar</button>
                 ` : `
-                  <select onchange="updateSeasonDropdown(${item.id}, this.value)" class="bg-slate-800 text-white text-xs rounded-lg border border-white/10 p-1 focus:outline-none max-w-[85px]">
+                  <select onchange="updateSeasonDropdown(${item.id}, this.value)" class="bg-slate-800 text-white text-[11px] rounded-lg border border-white/10 p-1 focus:outline-none max-w-[80px]">
                     ${seasonOptions}
                   </select>
-                  <select onchange="updateEpisodeDropdown(${item.id}, this.value)" class="bg-slate-800 text-white text-xs rounded-lg border border-white/10 p-1 focus:outline-none max-w-[75px]">
+                  <select onchange="updateEpisodeDropdown(${item.id}, this.value)" class="bg-slate-800 text-white text-[11px] rounded-lg border border-white/10 p-1 focus:outline-none max-w-[70px]">
                     ${episodeOptions}
                   </select>
-                  <button onclick="advanceNextEpisode(${item.id})" title="Siguiente capítulo" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-2.5 py-1 rounded-lg border border-emerald-400/30 font-bold transition flex items-center gap-1 active:scale-95 shadow">
+                  <button onclick="advanceNextEpisode(${item.id})" title="Siguiente capítulo" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-2 py-1 rounded-lg border border-emerald-400/30 font-bold transition flex items-center gap-1 active:scale-95 shadow">
                     <span>▶</span>
                   </button>
                 `}
               </div>
             ` : ''}
 
-            <a href="${faSearchUrl}" target="_blank" class="mt-2 text-xs text-amber-400 hover:underline flex items-center gap-1 font-medium">
+            <a href="${faSearchUrl}" target="_blank" class="mt-1.5 text-xs text-amber-400 hover:underline flex items-center gap-1 font-medium">
               <i class="fa-solid fa-star text-[10px]"></i> Ver en FilmAffinity
             </a>
           </div>
         `;
         grid.appendChild(card);
+      });
+
+      initSortable();
+    }
+
+    function initSortable() {
+      const grid = document.getElementById('content-grid');
+      if (!grid) return;
+
+      if (sortableInstance) {
+        sortableInstance.destroy();
+      }
+
+      sortableInstance = new Sortable(grid, {
+        animation: 150,
+        handle: '.drag-handle', // SOLO se puede arrastrar usando el icono ≡
+        ghostClass: 'sortable-ghost',
+        onEnd: async function () {
+          const cards = grid.querySelectorAll('.card-style');
+          const updates = [];
+
+          cards.forEach((card, index) => {
+            const id = Number(card.getAttribute('data-id'));
+            if (id) {
+              updates.push({ id: id, position: index });
+              const item = mediaList.find(m => m.id === id);
+              if (item) item.position = index;
+            }
+          });
+
+          for (const u of updates) {
+            await supabaseClient.from('media').update({ position: u.position }).eq('id', u.id);
+          }
+        }
       });
     }
 
@@ -724,7 +765,8 @@
         category: category,
         episode: 1,
         completed: false,
-        tmdb_id: tempSelectedItem.tmdb_id || null
+        tmdb_id: tempSelectedItem.tmdb_id || null,
+        position: 0
       };
 
       const { error } = await supabaseClient.from('media').insert([newItem]);
