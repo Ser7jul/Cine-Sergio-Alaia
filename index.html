@@ -47,14 +47,20 @@
         <button onclick="closeModal('add-modal')" class="text-slate-400 text-xl">&times;</button>
       </div>
 
+      <!-- Selector Tipo Búsqueda -->
+      <div class="flex gap-2 mb-3 bg-slate-950 p-1 rounded-xl border border-slate-800">
+        <button type="button" onclick="setSearchType('movie')" id="type-movie-btn" class="flex-1 py-1.5 text-xs font-bold rounded-lg bg-pink-600 text-white">🎬 Películas</button>
+        <button type="button" onclick="setSearchType('tv')" id="type-tv-btn" class="flex-1 py-1.5 text-xs font-bold rounded-lg text-slate-400">📺 Series</button>
+      </div>
+
       <form onsubmit="event.preventDefault(); executeSearch();" class="relative mb-2 flex gap-2">
-        <input type="text" id="tmdb-search" placeholder="Escribe película o serie..." class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-pink-500 text-white">
+        <input type="text" id="tmdb-search" placeholder="Escribe el nombre (ej: Origen, Gladiator)..." class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-pink-500 text-white">
         <button type="submit" class="bg-pink-600 text-white px-4 py-2.5 rounded-xl text-xs font-semibold hover:bg-pink-500 flex-shrink-0">Buscar</button>
       </form>
 
       <div class="flex justify-between items-center mb-3">
         <span id="status-msg" class="text-xs text-slate-400 hidden">Buscando...</span>
-        <button onclick="addManualItem()" class="text-xs text-pink-400 hover:underline ml-auto">+ Añadir rápido directamente</button>
+        <button onclick="addManualItem()" class="text-xs text-pink-400 hover:underline ml-auto">+ Añadir rápido manualmente</button>
       </div>
 
       <div id="search-results" class="flex-1 overflow-y-auto space-y-2 pr-1 hide-scrollbar max-h-60 mb-4"></div>
@@ -103,8 +109,22 @@
     } catch(e) {}
 
     let currentFilter = 'TODOS';
+    let searchType = 'movie'; // 'movie' o 'tv'
     let mediaList = [];
     let tempSelectedItem = null;
+
+    function setSearchType(type) {
+      searchType = type;
+      const mBtn = document.getElementById('type-movie-btn');
+      const tBtn = document.getElementById('type-tv-btn');
+      if (type === 'movie') {
+        mBtn.className = "flex-1 py-1.5 text-xs font-bold rounded-lg bg-pink-600 text-white";
+        tBtn.className = "flex-1 py-1.5 text-xs font-bold rounded-lg text-slate-400";
+      } else {
+        tBtn.className = "flex-1 py-1.5 text-xs font-bold rounded-lg bg-pink-600 text-white";
+        mBtn.className = "flex-1 py-1.5 text-xs font-bold rounded-lg text-slate-400";
+      }
+    }
 
     async function fetchMedia() {
       if (!supabaseClient) return;
@@ -163,196 +183,3 @@
                 </span>
                 <span class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-400 border border-slate-700/50">
                   ${isTV ? '📺 Serie' : '🎬 Película'}
-                </span>
-              </div>
-              <p class="text-xs text-slate-400 mt-2 line-clamp-2">${item.overview || 'Sin descripción disponible.'}</p>
-            </div>
-
-            ${isTV ? `
-              <div class="mt-2 bg-slate-950 p-2 rounded-xl flex items-center justify-between border border-slate-800 gap-2">
-                <select onchange="updateSeasonDropdown(${item.id}, this.value)" class="bg-slate-800 text-white text-xs rounded-lg border border-slate-700 p-1.5 focus:outline-none">
-                  ${seasonOptions}
-                </select>
-                <select onchange="updateEpisodeDropdown(${item.id}, this.value)" class="bg-slate-800 text-white text-xs rounded-lg border border-slate-700 p-1.5 focus:outline-none">
-                  ${episodeOptions}
-                </select>
-              </div>
-            ` : ''}
-
-            <a href="${faSearchUrl}" target="_blank" class="mt-2 text-[11px] text-amber-400 hover:underline flex items-center gap-1 font-medium">
-              <i class="fa-solid fa-star text-[10px]"></i> Ver en FilmAffinity
-            </a>
-          </div>
-        `;
-        grid.appendChild(card);
-      });
-    }
-
-    function getCategoryLabel(cat) {
-      switch(cat) {
-        case 'SERGIO': return '👦 Sergio';
-        case 'ALAIA': return '👩 Alaia';
-        case 'JUNTOS': return '👩‍❤️‍👨 Juntos';
-        case 'NIÑA': return '👧 Con la Niña';
-        default: return cat;
-      }
-    }
-
-    function setFilter(filter) {
-      currentFilter = filter;
-      document.querySelectorAll('.filter-btn').forEach(b => {
-        b.className = "filter-btn bg-slate-800 text-slate-300 px-4 py-1.5 rounded-full text-sm whitespace-nowrap font-medium";
-      });
-      const activeBtn = document.getElementById(`btn-${filter}`);
-      if (activeBtn) activeBtn.className = "filter-btn bg-pink-600 text-white px-4 py-1.5 rounded-full text-sm whitespace-nowrap font-medium";
-      renderList();
-    }
-
-    async function executeSearch() {
-      const input = document.getElementById('tmdb-search');
-      const query = input.value.trim();
-      const status = document.getElementById('status-msg');
-      const resultsDiv = document.getElementById('search-results');
-
-      if (!query) return;
-
-      status.innerText = "Buscando...";
-      status.classList.remove('hidden');
-      resultsDiv.innerHTML = '';
-      document.getElementById('selected-item-form').classList.add('hidden');
-
-      let results = [];
-
-      try {
-        const resShow = await fetch(`https://api.tvmaze.com/search/shows?q=${encodeURIComponent(query)}`);
-        const shows = await resShow.json();
-        if (shows && shows.length > 0) {
-          shows.slice(0, 4).forEach(s => {
-            results.push({
-              title: s.show.name,
-              type: 'tv',
-              poster: s.show.image ? s.show.image.medium : 'https://via.placeholder.com/200x300?text=Sin+Imagen',
-              overview: s.show.summary ? s.show.summary.replace(/<[^>]*>?/gm, '') : 'Serie'
-            });
-          });
-        }
-      } catch(e) {}
-
-      try {
-        const resMovie = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=movie&limit=4`);
-        const movies = await resMovie.json();
-        if (movies && movies.results && movies.results.length > 0) {
-          movies.results.forEach(m => {
-            results.push({
-              title: m.trackName,
-              type: 'movie',
-              poster: m.artworkUrl100 ? m.artworkUrl100.replace('100x100bb', '300x300bb') : 'https://via.placeholder.com/200x300?text=Sin+Imagen',
-              overview: m.longDescription || m.shortDescription || 'Película'
-            });
-          });
-        }
-      } catch(e) {}
-
-      status.classList.add('hidden');
-
-      if (results.length === 0) {
-        resultsDiv.innerHTML = `
-          <div class="text-center py-4">
-            <p class="text-xs text-slate-400 mb-2">No se encontraron resultados automáticos.</p>
-            <button onclick="addManualItem()" class="bg-slate-800 text-pink-400 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-semibold">
-              + Añadir "${query}" manualmente
-            </button>
-          </div>
-        `;
-        return;
-      }
-
-      results.forEach(item => {
-        const row = document.createElement('div');
-        row.className = "flex items-center gap-3 p-2 bg-slate-800/60 rounded-xl cursor-pointer hover:bg-slate-800 transition border border-slate-700/50";
-        row.onclick = () => selectItem(item);
-
-        row.innerHTML = `
-          <img src="${item.poster}" class="w-10 h-14 object-cover rounded-md flex-shrink-0" onerror="this.src='https://via.placeholder.com/200x300?text=Sin+Imagen'">
-          <div class="overflow-hidden flex-1">
-            <div class="flex items-center justify-between">
-              <h4 class="text-xs font-bold text-white truncate">${item.title}</h4>
-              <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded ${item.type === 'movie' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-purple-500/20 text-purple-300 border border-purple-500/30'}">
-                ${item.type === 'movie' ? '🎬 Película' : '📺 Serie'}
-              </span>
-            </div>
-            <p class="text-[10px] text-slate-400 line-clamp-1 mt-0.5">${item.overview}</p>
-          </div>
-        `;
-        resultsDiv.appendChild(row);
-      });
-    }
-
-    function addManualItem() {
-      const query = document.getElementById('tmdb-search').value.trim() || 'Nueva Entrada';
-      selectItem({
-        title: query,
-        type: 'movie',
-        poster: 'https://via.placeholder.com/200x300?text=' + encodeURIComponent(query),
-        overview: 'Añadido manualmente.',
-        season: 1,
-        episode: 1
-      });
-    }
-
-    function selectItem(item) {
-      tempSelectedItem = item;
-      document.getElementById('preview-img').src = item.poster;
-      document.getElementById('preview-title').innerText = item.title;
-      document.getElementById('preview-type').innerText = item.type === 'tv' ? '📺 Serie' : '🎬 Película';
-      document.getElementById('selected-item-form').classList.remove('hidden');
-    }
-
-    async function saveSelectedItem() {
-      if (!tempSelectedItem || !supabaseClient) return;
-      const category = document.querySelector('input[name="category"]:checked').value;
-      
-      const newItem = {
-        title: tempSelectedItem.title,
-        type: tempSelectedItem.type,
-        poster: tempSelectedItem.poster,
-        overview: tempSelectedItem.overview,
-        category: category,
-        season: 1,
-        episode: 1
-      };
-
-      const { error } = await supabaseClient.from('media').insert([newItem]);
-      if (!error) {
-        tempSelectedItem = null;
-        document.getElementById('selected-item-form').classList.add('hidden');
-        document.getElementById('search-results').innerHTML = '';
-        document.getElementById('tmdb-search').value = '';
-        closeModal('add-modal');
-        fetchMedia();
-      }
-    }
-
-    async function updateSeasonDropdown(id, newSeason) {
-      await supabaseClient.from('media').update({ season: Number(newSeason), episode: 1 }).eq('id', id);
-      fetchMedia();
-    }
-
-    async function updateEpisodeDropdown(id, newEp) {
-      await supabaseClient.from('media').update({ episode: Number(newEp) }).eq('id', id);
-      fetchMedia();
-    }
-
-    async function deleteItem(id) {
-      await supabaseClient.from('media').delete().eq('id', id);
-      fetchMedia();
-    }
-
-    function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
-    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
-
-    fetchMedia();
-    setInterval(fetchMedia, 5000);
-  </script>
-</body>
-</html>
