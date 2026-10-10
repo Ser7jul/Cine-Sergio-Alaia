@@ -269,7 +269,6 @@
           const res = await fetch(`https://api.themoviedb.org/3/tv/${item.tmdb_id}?api_key=${TMDB_KEY}&language=es-ES`);
           if (res.ok) {
             const data = await res.json();
-            
             const seasons = (data.seasons || []).filter(s => s.season_number > 0);
             
             let badge = '';
@@ -291,6 +290,24 @@
           }
         } catch(e) {}
       }
+    }
+
+    function calculateTotalPending(item, tvDetails) {
+      if (!tvDetails || !tvDetails.seasons || tvDetails.seasons.length === 0) return 0;
+      
+      const currSeason = item.season || 1;
+      const currEp = item.episode || 1;
+      let totalPending = 0;
+
+      tvDetails.seasons.forEach(s => {
+        if (s.season_number === currSeason) {
+          totalPending += Math.max(0, (s.episode_count || 0) - currEp);
+        } else if (s.season_number > currSeason) {
+          totalPending += (s.episode_count || 0);
+        }
+      });
+
+      return totalPending;
     }
 
     function renderList() {
@@ -349,8 +366,7 @@
           }
         }
 
-        // Cálculo de Capítulos Pendientes
-        const pendingEpisodes = maxEpisodesInCurrentSeason - currentEpisodeNum;
+        const totalPending = isTV ? calculateTotalPending(item, tvDetails) : 0;
 
         let episodeOptions = '';
         for (let e = 1; e <= maxEpisodesInCurrentSeason; e++) {
@@ -365,9 +381,9 @@
             
             ${isCompleted ? `
               <span class="absolute top-1 left-1 bg-emerald-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shadow">VISTA</span>
-            ` : (isTV && pendingEpisodes > 0 ? `
-              <div title="${pendingEpisodes} capítulos pendientes por ver" class="absolute -top-1.5 -left-1.5 bg-amber-400 text-slate-950 text-xs font-black w-6 h-6 rounded-full flex items-center justify-center shadow-md border-2 border-slate-900">
-                ${pendingEpisodes}
+            ` : (isTV && totalPending > 0 ? `
+              <div title="${totalPending} capítulos pendientes en total" class="absolute -top-1.5 -left-1.5 bg-amber-400 text-slate-950 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full shadow-md border-2 border-slate-900 flex items-center gap-0.5">
+                <span>Pendientes:</span> <span class="text-xs font-black">${totalPending}</span>
               </div>
             ` : '')}
           </div>
@@ -397,19 +413,19 @@
             </div>
 
             ${isTV ? `
-              <div class="mt-2 bg-slate-950/80 p-1.5 rounded-xl flex items-center justify-between border border-white/10 gap-2">
+              <div class="mt-2 bg-slate-950/80 p-1.5 rounded-xl flex items-center justify-between border border-white/10 gap-1.5">
                 ${isCompleted ? `
                   <span class="text-xs text-emerald-400 font-semibold px-1">Temporada finalizada</span>
                   <button onclick="toggleCompleted(${item.id}, false)" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded-lg border border-white/10 font-medium">Reanudar</button>
                 ` : `
-                  <select onchange="updateSeasonDropdown(${item.id}, this.value)" class="bg-slate-800 text-white text-xs rounded-lg border border-white/10 p-1 focus:outline-none">
+                  <select onchange="updateSeasonDropdown(${item.id}, this.value)" class="bg-slate-800 text-white text-xs rounded-lg border border-white/10 p-1 focus:outline-none max-w-[85px]">
                     ${seasonOptions}
                   </select>
-                  <select onchange="updateEpisodeDropdown(${item.id}, this.value)" class="bg-slate-800 text-white text-xs rounded-lg border border-white/10 p-1 focus:outline-none">
+                  <select onchange="updateEpisodeDropdown(${item.id}, this.value)" class="bg-slate-800 text-white text-xs rounded-lg border border-white/10 p-1 focus:outline-none max-w-[75px]">
                     ${episodeOptions}
                   </select>
-                  <button onclick="toggleCompleted(${item.id}, true)" title="Marcar temporada como vista" class="bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white text-xs px-2 py-1 rounded-lg border border-emerald-500/30 transition">
-                    ✓
+                  <button onclick="advanceNextEpisode(${item.id})" title="Siguiente capítulo" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-2.5 py-1 rounded-lg border border-emerald-400/30 font-bold transition flex items-center gap-1 active:scale-95 shadow">
+                    <span>▶</span>
                   </button>
                 `}
               </div>
@@ -422,6 +438,40 @@
         `;
         grid.appendChild(card);
       });
+    }
+
+    // Avanza automáticamente al siguiente capítulo o temporada
+    async function advanceNextEpisode(id) {
+      const item = mediaList.find(m => m.id === id);
+      if (!item) return;
+
+      const tvDetails = tvDetailsCache[item.tmdb_id];
+      let currSeason = item.season || 1;
+      let currEp = item.episode || 1;
+
+      let maxEpisodesInCurrentSeason = 30;
+      let totalSeasons = 15;
+
+      if (tvDetails && tvDetails.seasons) {
+        totalSeasons = tvDetails.seasons.length;
+        const currentSData = tvDetails.seasons.find(s => s.season_number === currSeason);
+        if (currentSData) {
+          maxEpisodesInCurrentSeason = currentSData.episode_count || 30;
+        }
+      }
+
+      if (currEp < maxEpisodesInCurrentSeason) {
+        // Pasar al siguiente capítulo de la misma temporada
+        await supabaseClient.from('media').update({ episode: currEp + 1 }).eq('id', id);
+      } else if (currSeason < totalSeasons) {
+        // Pasar al primer capítulo de la siguiente temporada
+        await supabaseClient.from('media').update({ season: currSeason + 1, episode: 1 }).eq('id', id);
+      } else {
+        // Marcar como temporada finalizada si ya no hay más episodios
+        await supabaseClient.from('media').update({ completed: true }).eq('id', id);
+      }
+
+      fetchMedia();
     }
 
     function getCategoryLabel(cat) {
