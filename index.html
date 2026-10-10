@@ -4,14 +4,30 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Cine & Series - Sergio y Alaia</title>
-  <!-- CSS Ligero sin bloquéos -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+  <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     body { background-color: #0f172a; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; touch-action: manipulation; }
     .hide-scrollbar::-webkit-scrollbar { display: none; }
     .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    /* Overlay nativo sin bloqueos */
+    .custom-modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.85);
+      z-index: 9999;
+      align-items: flex-end;
+      justify-content: center;
+    }
+    @media (min-width: 640px) {
+      .custom-modal { align-items: center; padding: 16px; }
+    }
+    .custom-modal.active {
+      display: flex !important;
+    }
   </style>
 </head>
 <body class="pb-24">
@@ -19,7 +35,7 @@
   <!-- Header -->
   <header class="sticky top-0 z-40 bg-slate-900 border-b border-slate-800 p-4 flex justify-between items-center">
     <h1 class="text-xl font-bold text-pink-500">🎬 Sergio & Alaia</h1>
-    <button id="open-btn" type="button" class="bg-pink-600 active:bg-pink-700 text-white px-4 py-2 rounded-full text-sm font-semibold flex items-center gap-1 shadow-lg">
+    <button onclick="openAddModal()" type="button" class="bg-pink-600 text-white px-4 py-2 rounded-full text-sm font-semibold flex items-center gap-1 shadow-lg">
       <i class="fa-solid fa-plus"></i> Añadir
     </button>
   </header>
@@ -39,21 +55,21 @@
   </main>
 
   <!-- Modal Añadir -->
-  <div id="add-modal" class="fixed inset-0 bg-black bg-opacity-80 z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
-    <div class="bg-slate-900 border border-slate-800 w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl p-5 max-h-90vh flex flex-col overflow-y-auto">
+  <div id="add-modal" class="custom-modal">
+    <div class="bg-slate-900 border border-slate-800 w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl p-5 max-h-[90vh] flex flex-col">
       <div class="flex justify-between items-center mb-4">
         <h2 class="text-lg font-bold text-white">Añadir Película o Serie</h2>
-        <button id="close-btn" type="button" class="text-slate-400 hover:text-white text-2xl px-2 py-1">&times;</button>
+        <button onclick="closeAddModal()" type="button" class="text-slate-400 hover:text-white text-2xl px-2">&times;</button>
       </div>
 
-      <!-- Tipo -->
+      <!-- Selector Tipo Búsqueda -->
       <div class="flex gap-2 mb-3 bg-slate-950 p-1 rounded-xl border border-slate-800">
         <button type="button" onclick="setSearchType('movie')" id="type-movie-btn" class="flex-1 py-1.5 text-xs font-bold rounded-lg bg-pink-600 text-white">🎬 Películas</button>
         <button type="button" onclick="setSearchType('tv')" id="type-tv-btn" class="flex-1 py-1.5 text-xs font-bold rounded-lg text-slate-400">📺 Series</button>
       </div>
 
       <form onsubmit="executeSearch(event)" class="relative mb-2 flex gap-2">
-        <input type="text" id="tmdb-search" placeholder="Escribe el nombre..." class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none text-white">
+        <input type="text" id="tmdb-search" placeholder="Escribe el nombre (ej: Titanic)..." class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none text-white">
         <button type="submit" class="bg-pink-600 text-white px-4 py-2.5 rounded-xl text-xs font-semibold flex-shrink-0">Buscar</button>
       </form>
 
@@ -69,7 +85,7 @@
           <img id="preview-img" src="" class="w-10 h-14 object-cover rounded-md">
           <div>
             <h4 id="preview-title" class="text-xs font-bold text-white"></h4>
-            <p id="preview-type" class="text-10px text-pink-400 font-bold uppercase"></p>
+            <p id="preview-type" class="text-[10px] text-pink-400 font-bold uppercase"></p>
           </div>
         </div>
 
@@ -113,16 +129,12 @@
     let mediaList = [];
     let tempSelectedItem = null;
 
-    document.getElementById('open-btn').addEventListener('click', function() {
-      document.getElementById('add-modal').classList.remove('hidden');
-    });
-
-    document.getElementById('close-btn').addEventListener('click', function() {
-      closeAddModal();
-    });
+    function openAddModal() {
+      document.getElementById('add-modal').classList.add('active');
+    }
 
     function closeAddModal() {
-      document.getElementById('add-modal').classList.add('hidden');
+      document.getElementById('add-modal').classList.remove('active');
       document.getElementById('selected-item-form').classList.add('hidden');
       document.getElementById('search-results').innerHTML = '';
       document.getElementById('tmdb-search').value = '';
@@ -193,10 +205,10 @@
                 <button onclick="deleteItem(${item.id})" class="text-slate-600 hover:text-red-400 text-xs px-1">&times;</button>
               </div>
               <div class="flex gap-1 items-center mt-1">
-                <span class="text-xs font-bold px-2 py-0.5 rounded-md bg-slate-800 text-pink-400 border border-slate-700">
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-800 text-pink-400 border border-slate-700">
                   ${getCategoryLabel(item.category)}
                 </span>
-                <span class="text-xs font-medium px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                <span class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
                   ${isTV ? '📺 Serie' : '🎬 Película'}
                 </span>
               </div>
@@ -315,7 +327,7 @@
           <div class="overflow-hidden flex-1">
             <div class="flex items-center justify-between">
               <h4 class="text-xs font-bold text-white truncate">${item.title}</h4>
-              <span class="text-xs font-semibold px-1.5 py-0.5 rounded ${item.type === 'movie' ? 'bg-amber-500 bg-opacity-20 text-amber-300' : 'bg-purple-500 bg-opacity-20 text-purple-300'}">
+              <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded ${item.type === 'movie' ? 'bg-amber-500 bg-opacity-20 text-amber-300' : 'bg-purple-500 bg-opacity-20 text-purple-300'}">
                 ${item.type === 'movie' ? '🎬 Película' : '📺 Serie'}
               </span>
             </div>
